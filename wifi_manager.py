@@ -5,6 +5,7 @@ import re
 import time
 
 ENCODING = "utf-8"
+SETTINGS_FILE_NAME = "settings.dat"
 
 
 class WifiManager:
@@ -31,11 +32,6 @@ class WifiManager:
             self.ap_password = password
 
         self.ap_authmode = 3
-
-        # There is no encryption, it's just a plain text archive. Be aware of this security problem!
-        self.settings_file = "settings.dat"
-
-        # Prevents the device from automatically trying to connect to the last saved network without first going through the steps defined in the code.
         self.wlan_sta.disconnect()
 
         self.reboot = reboot
@@ -81,13 +77,13 @@ class WifiManager:
                 settings["mqtt_password"],
             )
         )
-        with open(self.settings_file, "w") as file:
+        with open(SETTINGS_FILE_NAME, "w") as file:
             file.write("".join(lines))
 
     def read_settings(self):
         lines = []
         try:
-            with open(self.settings_file) as file:
+            with open(SETTINGS_FILE_NAME) as file:
                 lines = file.readlines()
         except Exception as error:
             if self.debug:

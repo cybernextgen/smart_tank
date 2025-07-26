@@ -9,3 +9,11 @@ Upgrade for boiling device. Adds "smart" functions to device, such as:
 - Standalone HTTP server for initial configuration (using WiFi AdHoc mode);
 - MQTT over WiFi;
 - OLED display.
+
+# Hardware
+
+Required modules:
+
+- ESP32_devkitc_v4 module (ESP32WROOM32D based development board);
+
+# Software
