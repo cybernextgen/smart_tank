@@ -1,16 +1,30 @@
-from wifi_manager import WifiManager
+import re
+import time
+
+import machine
+import ubinascii
+import ujson
 from machine import Pin, Signal, unique_id
 from umqtt.robust import MQTTClient
-import ubinascii
-import time
-import gc
-import state
 
-ENCODING = "utf-8"
+from parameter_manager import MODE_AUTO, MODE_OFF, MODE_REMOTE, ParameterManager
+from sensors import (
+    QUALITY_BAD,
+    QUALITY_GOOD,
+    FreeMemorySensor,
+    UptimeSensor,
+    IPAddressSensor,
+)
+from wifi_manager import WifiManager
 
 configuration_mode_signal = Signal(Pin(23, Pin.IN, Pin.PULL_UP), invert=True)
+
+heater_output_signal = Signal(Pin(13, Pin.OUT))
+heater_output_signal.value(0)
+
 mqtt_client_id = ubinascii.hexlify(unique_id())
-device_state = None
+parameters = None
+mqtt_client = None
 
 wm = WifiManager(
     ssid="smart_tank",
@@ -19,62 +33,112 @@ wm = WifiManager(
     configuration_mode=configuration_mode_signal.value(),
 )
 
+uptime_sensor = UptimeSensor()
+free_memory_sensor = FreeMemorySensor()
+ip_address_sensor = IPAddressSensor(wm)
 
-def sub_cb(topic, msg):
 
-    if topic == mqtt_client_id + b"/state/change/mode":
-        new_mode = msg.decode()
+def make_mqtt_topic(path):
+    return mqtt_client_id + path.encode()
+
+
+def mqtt_message_handler(btopic, bmsg):
+
+    if m := re.search(make_mqtt_topic("/parameters/change/(.+)"), btopic):
+        parameter_name = m.group(1)
         try:
-            device_state.mode = int(new_mode)
-        except ValueError as e:
+            setattr(parameters, parameter_name.decode(), int(bmsg))
+        except Exception as e:
             print(e)
-    print(f"Received message on topic {topic.decode()}: {msg.decode()}")
+
+
+def handle_sensors():
+    sensors_data = {}
+    for sensor in [free_memory_sensor, uptime_sensor, ip_address_sensor]:
+        sensors_data[sensor.name] = sensor.get_measurement().to_dict()
+
+    mqtt_client.publish(make_mqtt_topic("/sensors"), ujson.dumps(sensors_data))
+
+
+def handle_off_mode():
+    return
+
+
+def handle_auto_mode():
+    if parameters.mode != MODE_AUTO:
+        return
+
+
+def handle_remote_mode():
+    if parameters.mode != MODE_REMOTE:
+        return
+
+
+def handle_output():
+    pass
+
+
+def disable_device():
+    heater_output_signal.value(0)
+    if parameters.mode != MODE_OFF:
+        parameters.mode = MODE_OFF
+
+
+def reset_device_after_delay(delay_sec=60):
+    time.sleep(delay_sec)
+    machine.reset()
 
 
 def main():
+    global mqtt_client_id, parameters, mqtt_client
+
     wm.connect()
     settings = wm.read_settings()
 
-    global mqtt_client_id
-    mqtt_client_id = settings["device_name"].encode(ENCODING) or mqtt_client_id
+    mqtt_client_id = settings["device_name"].encode() or mqtt_client_id
     mqtt_host = settings["mqtt_host"]
 
-    client = MQTTClient(
+    mqtt_client = MQTTClient(
         mqtt_client_id,
         mqtt_host,
         settings["mqtt_port"],
         settings["mqtt_user"],
         settings["mqtt_password"],
     )
-    client.set_callback(sub_cb)
+    mqtt_client.set_callback(mqtt_message_handler)
 
     try:
-        client.connect()
+        mqtt_client.connect()
         print(f"Connected to MQTT broker at {mqtt_host}")
-        client.subscribe(mqtt_client_id + b"/state/change/+")
+        mqtt_client.subscribe(make_mqtt_topic("/parameters/change/#"))
 
     except Exception as e:
         print(f"Error connecting to MQTT broker: {e}")
-        return
+        disable_device()
+        reset_device_after_delay()
 
-    global device_state
-    device_state = state.DeviceState(
-        client, mqtt_client_id + b"/" + "state".encode(ENCODING)
-    )
+    parameters = ParameterManager(mqtt_client, make_mqtt_topic("/parameters"))
 
     while True:
         try:
-            client.check_msg()
+            mqtt_client.check_msg()
 
-            client.publish(mqtt_client_id, b"Hello from umqtt.robust!")
+            handle_sensors()
+            handle_auto_mode()
+            handle_remote_mode()
+            handle_output()
+
             time.sleep(5)
+
         except Exception as e:
             print(f"Error during MQTT operation: {e}")
             time.sleep(2)
             try:
-                client.reconnect()
+                mqtt_client.reconnect()
             except Exception as reconnect_e:
                 print(f"Failed to reconnect: {reconnect_e}")
+                disable_device()
+                reset_device_after_delay()
 
 
 if __name__ == "__main__":
