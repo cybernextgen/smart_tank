@@ -7,13 +7,15 @@ import ujson
 from machine import Pin, Signal, unique_id
 from umqtt.robust import MQTTClient
 
+import sheduler
 from parameter_manager import MODE_AUTO, MODE_OFF, MODE_REMOTE, ParameterManager
 from sensors import (
     QUALITY_BAD,
     QUALITY_GOOD,
+    DS18B20Sensor,
     FreeMemorySensor,
-    UptimeSensor,
     IPAddressSensor,
+    UptimeSensor,
 )
 from wifi_manager import WifiManager
 
@@ -36,28 +38,47 @@ wm = WifiManager(
 uptime_sensor = UptimeSensor()
 free_memory_sensor = FreeMemorySensor()
 ip_address_sensor = IPAddressSensor(wm)
+bottom_temperature_sensor = DS18B20Sensor("bottom_temperature", 32, True)
+
+ping_sheduler = sheduler.Sheduler(30000)
 
 
 def make_mqtt_topic(path):
     return mqtt_client_id + path.encode()
 
 
+def make_mqtt_input_topic(path):
+    return make_mqtt_topic(f"/to_device{path}")
+
+
+def make_mqtt_output_topic(path):
+    return make_mqtt_topic(f"/from_device{path}")
+
+
 def mqtt_message_handler(btopic, bmsg):
 
-    if m := re.search(make_mqtt_topic("/parameters/change/(.+)"), btopic):
+    if m := re.search(make_mqtt_input_topic("/parameters/(.+)"), btopic):
         parameter_name = m.group(1)
         try:
             setattr(parameters, parameter_name.decode(), int(bmsg))
         except Exception as e:
             print(e)
+    elif btopic == make_mqtt_input_topic("/ping"):
+        ping_sheduler.reset()
+        mqtt_client.publish(make_mqtt_output_topic("/pong"), "")
 
 
 def handle_sensors():
     sensors_data = {}
-    for sensor in [free_memory_sensor, uptime_sensor, ip_address_sensor]:
+    for sensor in [
+        free_memory_sensor,
+        uptime_sensor,
+        ip_address_sensor,
+        bottom_temperature_sensor,
+    ]:
         sensors_data[sensor.name] = sensor.get_measurement().to_dict()
 
-    mqtt_client.publish(make_mqtt_topic("/sensors"), ujson.dumps(sensors_data))
+    mqtt_client.publish(make_mqtt_output_topic("/sensors"), ujson.dumps(sensors_data))
 
 
 def handle_off_mode():
@@ -71,6 +92,11 @@ def handle_auto_mode():
 
 def handle_remote_mode():
     if parameters.mode != MODE_REMOTE:
+        ping_sheduler.reset()
+        return
+
+    if ping_sheduler.is_timeout():
+        disable_device()
         return
 
 
@@ -110,25 +136,27 @@ def main():
     try:
         mqtt_client.connect()
         print(f"Connected to MQTT broker at {mqtt_host}")
-        mqtt_client.subscribe(make_mqtt_topic("/parameters/change/#"))
+        mqtt_client.subscribe(make_mqtt_input_topic("/#"))
 
     except Exception as e:
         print(f"Error connecting to MQTT broker: {e}")
         disable_device()
         reset_device_after_delay()
 
-    parameters = ParameterManager(mqtt_client, make_mqtt_topic("/parameters"))
+    parameters = ParameterManager(mqtt_client, make_mqtt_output_topic("/parameters"))
+
+    sensor_sheduler = sheduler.Sheduler(10000)
 
     while True:
         try:
             mqtt_client.check_msg()
 
-            handle_sensors()
+            if sensor_sheduler.is_timeout():
+                handle_sensors()
+
             handle_auto_mode()
             handle_remote_mode()
             handle_output()
-
-            time.sleep(5)
 
         except Exception as e:
             print(f"Error during MQTT operation: {e}")

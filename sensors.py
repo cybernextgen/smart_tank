@@ -1,6 +1,7 @@
 import ujson
 import gc
 import time
+import machine, onewire, ds18x20
 
 
 QUALITY_GOOD = 0
@@ -67,3 +68,40 @@ class IPAddressSensor(Sensor):
 
         ifconfig = self.__wifi_manager.get_address()
         return Measurement(ifconfig[0], QUALITY_GOOD)
+
+
+class DS18B20Sensor(Sensor):
+
+    def __init__(self, name, pin_number, blocking_first_read=False):
+        self.__sensor_reader = ds18x20.DS18X20(onewire.OneWire(machine.Pin(pin_number)))
+        self.__ds_sensors = self.__sensor_reader.scan()
+
+        self.__prev_measurement = None
+        self.__prev_ticks = 0
+
+        if blocking_first_read:
+            self.get_measurement()
+            time.sleep_ms(760)
+
+        super().__init__(name)
+
+    def get_measurement(self):
+        current_ticks = time.ticks_ms()
+        if not self.__prev_measurement:
+            self.__sensor_reader.convert_temp()
+            self.__prev_ticks = current_ticks
+            self.__prev_measurement = Measurement(0, QUALITY_BAD)
+
+        elif time.ticks_diff(current_ticks, self.__prev_ticks) >= 750:
+            accumulator = 0
+            for sensor in self.__ds_sensors:
+                accumulator += self.__sensor_reader.read_temp(sensor)
+
+            self.__sensor_reader.convert_temp()
+            self.__prev_ticks = current_ticks
+
+            self.__prev_measurement = Measurement(
+                accumulator / len(self.__ds_sensors), QUALITY_GOOD
+            )
+
+        return self.__prev_measurement
