@@ -6,6 +6,7 @@ import ubinascii
 import ujson
 from machine import Pin, Signal, unique_id
 from umqtt.robust import MQTTClient
+from heater import Heater
 
 import sheduler
 from parameter_manager import MODE_AUTO, MODE_OFF, MODE_REMOTE, ParameterManager
@@ -20,9 +21,6 @@ from sensors import (
 from wifi_manager import WifiManager
 
 configuration_mode_signal = Signal(Pin(23, Pin.IN, Pin.PULL_UP), invert=True)
-
-heater_output_signal = Signal(Pin(13, Pin.OUT))
-heater_output_signal.value(0)
 
 mqtt_client_id = ubinascii.hexlify(unique_id())
 parameters = None
@@ -39,6 +37,7 @@ uptime_sensor = UptimeSensor()
 free_memory_sensor = FreeMemorySensor()
 ip_address_sensor = IPAddressSensor(wm)
 bottom_temperature_sensor = DS18B20Sensor("bottom_temperature", 32, True)
+heater = Heater(13)
 
 ping_sheduler = sheduler.Sheduler(30000)
 
@@ -55,17 +54,35 @@ def make_mqtt_output_topic(path):
     return make_mqtt_topic(f"/from_device{path}")
 
 
+def send_status(status_code=200, message="ok"):
+    mqtt_client.publish(
+        make_mqtt_output_topic("/status"),
+        ujson.dumps({"status": status_code, "message": message}),
+    )
+
+
 def mqtt_message_handler(btopic, bmsg):
 
     if m := re.search(make_mqtt_input_topic("/parameters/(.+)"), btopic):
         parameter_name = m.group(1)
         try:
             setattr(parameters, parameter_name.decode(), int(bmsg))
+            send_status()
         except Exception as e:
-            print(e)
+            send_status(400, "bad parameter name or parameter value")
     elif btopic == make_mqtt_input_topic("/ping"):
         ping_sheduler.reset()
         mqtt_client.publish(make_mqtt_output_topic("/pong"), "")
+    elif btopic == make_mqtt_input_topic("/heater_power"):
+        try:
+            if parameters.mode == MODE_REMOTE:
+                new_power = int(bmsg)
+                heater.set_power(new_power)
+                send_status()
+            else:
+                send_status(400, "wrong device mode")
+        except Exception as e:
+            send_status(400, "wrong power value")
 
 
 def handle_sensors():
@@ -101,11 +118,11 @@ def handle_remote_mode():
 
 
 def handle_output():
-    pass
+    heater.handle_output()
 
 
 def disable_device():
-    heater_output_signal.value(0)
+    heater.set_power(0)
     if parameters.mode != MODE_OFF:
         parameters.mode = MODE_OFF
 
@@ -134,7 +151,7 @@ def main():
     mqtt_client.set_callback(mqtt_message_handler)
 
     try:
-        mqtt_client.connect()
+        mqtt_client.connect(clean_session=False)
         print(f"Connected to MQTT broker at {mqtt_host}")
         mqtt_client.subscribe(make_mqtt_input_topic("/#"))
 
