@@ -62,6 +62,8 @@ def send_status(status_code=200, message="ok"):
 
 
 def mqtt_message_handler(btopic, bmsg):
+    if __debug__:
+        print(f"Recieved MQTT message '{bmsg.decode()}' from topic '{btopic.decode()}'")
 
     if m := re.search(make_mqtt_input_topic("/parameters/(.+)"), btopic):
         parameter_name = m.group(1)
@@ -152,11 +154,13 @@ def main():
 
     try:
         mqtt_client.connect(clean_session=False)
-        print(f"Connected to MQTT broker at {mqtt_host}")
+        if __debug__:
+            print(f"Connected to MQTT broker at '{mqtt_host}'")
         mqtt_client.subscribe(make_mqtt_input_topic("/#"))
 
     except Exception as e:
-        print(f"Error connecting to MQTT broker: {e}")
+        if __debug__:
+            print(f"Error connecting to MQTT broker: {e}")
         disable_device()
         reset_device_after_delay()
 
@@ -176,12 +180,14 @@ def main():
             handle_output()
 
         except Exception as e:
-            print(f"Error during MQTT operation: {e}")
+            if __debug__:
+                print(f"Error during MQTT operation: {e}")
             time.sleep(2)
             try:
                 mqtt_client.reconnect()
             except Exception as reconnect_e:
-                print(f"Failed to reconnect: {reconnect_e}")
+                if __debug__:
+                    print(f"Failed to reconnect: {reconnect_e}")
                 disable_device()
                 reset_device_after_delay()
 

@@ -73,19 +73,29 @@ class IPAddressSensor(Sensor):
 class DS18B20Sensor(Sensor):
 
     def __init__(self, name, pin_number, blocking_first_read=False):
-        self.__sensor_reader = ds18x20.DS18X20(onewire.OneWire(machine.Pin(pin_number)))
-        self.__ds_sensors = self.__sensor_reader.scan()
-
         self.__prev_measurement = None
         self.__prev_ticks = 0
+        self.__ds_sensors = []
 
-        if blocking_first_read:
-            self.get_measurement()
-            time.sleep_ms(760)
+        try:
+            self.__sensor_reader = ds18x20.DS18X20(
+                onewire.OneWire(machine.Pin(pin_number))
+            )
+            self.__ds_sensors = self.__sensor_reader.scan()
+
+            if blocking_first_read:
+                self.get_measurement()
+                time.sleep_ms(760)
+        except onewire.OneWireError:
+            if __debug__:
+                print(f"DS18B20 not found on pin {pin_number}")
 
         super().__init__(name)
 
     def get_measurement(self):
+        if not len(self.__ds_sensors):
+            return Measurement(0, QUALITY_BAD)
+
         current_ticks = time.ticks_ms()
         if not self.__prev_measurement:
             self.__sensor_reader.convert_temp()
