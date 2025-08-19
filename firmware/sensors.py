@@ -2,6 +2,7 @@ import ujson
 import gc
 import time
 import machine, onewire, ds18x20
+import hx711
 
 
 QUALITY_GOOD = 0
@@ -10,7 +11,7 @@ QUALITY_BAD = 1
 
 class Measurement:
 
-    def __init__(self, value, quality):
+    def __init__(self, value, quality: int):
         self.value = value
         self.quality = quality
 
@@ -23,7 +24,7 @@ class Measurement:
 
 class Sensor:
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def get_measurement(self):
@@ -115,3 +116,62 @@ class DS18B20Sensor(Sensor):
             )
 
         return self.__prev_measurement
+
+
+class HX711Sensor(Sensor):
+
+    def __init__(self, name: str, dout_pin_number: int, sck_pin_number: int):
+        try:
+            self.__sensor_reader = hx711.HX711(dout_pin_number, sck_pin_number)
+        except hx711.DeviceIsNotReady:
+            self.__sensor_reader = None
+
+        super().__init__(name)
+
+    def get_measurement(self):
+        if not self.__sensor_reader:
+            return Measurement(0, QUALITY_BAD)
+
+        try:
+            value = self.__sensor_reader.read()
+            return Measurement(value, QUALITY_GOOD)
+        except hx711.DeviceIsNotReady:
+            return Measurement(0, QUALITY_BAD)
+
+
+class CalibrationPoint:
+
+    def __init__(self, raw_value: float, calibrated_value: float):
+        self.raw_value = raw_value
+        self.calibrated_value = calibrated_value
+
+    def to_dict(self):
+        return {"raw_value": self.raw_value, "calibrated_value": self.calibrated_value}
+
+    def to_json(self):
+        return ujson.dumps(self.to_dict)
+
+
+class CalibratedSensor(Sensor):
+
+    def __init__(
+        self,
+        sensor,
+        calibration_point_1: CalibrationPoint,
+        calibration_point_2: CalibrationPoint,
+    ):
+
+        self.sensor = sensor
+        self.__k = (
+            calibration_point_2.calibrated_value - calibration_point_1.calibrated_value
+        ) / (calibration_point_2.raw_value - calibration_point_1.raw_value)
+        self.__b = (
+            self.__k * calibration_point_1.raw_value
+            - calibration_point_1.calibrated_value
+        )
+        super().__init__(f"{sensor.name}__calibrated")
+
+    def get_measurement(self):
+        m = super().get_measurement()
+        calibrated_value = self.__k * m.value + self.__b
+        return Measurement(calibrated_value, m.quality)

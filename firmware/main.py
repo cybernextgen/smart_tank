@@ -2,22 +2,22 @@ import re
 import time
 
 import machine
+import sheduler
 import ubinascii
 import ujson
-from machine import Pin, Signal, unique_id
-from umqtt.robust import MQTTClient
 from heater import Heater
-
-import sheduler
+from machine import Pin, Signal, freq, unique_id
 from parameter_manager import MODE_AUTO, MODE_OFF, MODE_REMOTE, ParameterManager
 from sensors import (
     QUALITY_BAD,
     QUALITY_GOOD,
     DS18B20Sensor,
     FreeMemorySensor,
+    HX711Sensor,
     IPAddressSensor,
     UptimeSensor,
 )
+from umqtt.robust import MQTTClient
 from wifi_manager import WifiManager
 
 configuration_mode_signal = Signal(Pin(23, Pin.IN, Pin.PULL_UP), invert=True)
@@ -36,8 +36,13 @@ wm = WifiManager(
 uptime_sensor = UptimeSensor()
 free_memory_sensor = FreeMemorySensor()
 ip_address_sensor = IPAddressSensor(wm)
-bottom_temperature_sensor = DS18B20Sensor("bottom_temperature", 32, True)
+bottom_temperature_sensor = DS18B20Sensor(
+    "bottom_temperature", pin_number=32, blocking_first_read=True
+)
+load_cell_1_sensor = HX711Sensor("load_cell_1", dout_pin_number=36, sck_pin_number=26)
 heater = Heater(13)
+
+sensors_data = {}
 
 ping_sheduler = sheduler.Sheduler(30000)
 
@@ -94,6 +99,7 @@ def handle_sensors():
         uptime_sensor,
         ip_address_sensor,
         bottom_temperature_sensor,
+        load_cell_1_sensor,
     ]:
         sensors_data[sensor.name] = sensor.get_measurement().to_dict()
 
@@ -136,6 +142,8 @@ def reset_device_after_delay(delay_sec=60):
 
 def main():
     global mqtt_client_id, parameters, mqtt_client
+
+    freq(160000000)
 
     wm.connect()
     settings = wm.read_settings()
