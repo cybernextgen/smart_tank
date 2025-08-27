@@ -169,9 +169,11 @@ class CalibratedSensor(Sensor):
             self.__k * calibration_point_1.raw_value
             - calibration_point_1.calibrated_value
         )
-        super().__init__(f"{sensor.name}__calibrated")
+        super().__init__(f"{sensor.name}_calibrated")
 
-    def get_measurement(self):
-        m = super().get_measurement()
-        calibrated_value = self.__k * m.value + self.__b
-        return Measurement(calibrated_value, m.quality)
+    def get_measurement(self, raw_measurement: Measurement = None):
+        if not raw_measurement:
+            raw_measurement = self.sensor.get_measurement()
+
+        calibrated_value = self.__k * raw_measurement.value + self.__b
+        return Measurement(calibrated_value, raw_measurement.quality)

@@ -1,4 +1,5 @@
 import ujson
+from sensors import CalibrationPoint
 
 MODE_OFF = 0
 MODE_AUTO = 1
@@ -19,6 +20,11 @@ class ParameterManager:
         self._output_max_power = 70
         self._output_pwm_interval_ms = 1000
 
+        self._weight_calibration_points = [
+            CalibrationPoint(0, 0),
+            CalibrationPoint(1, 1),
+        ]
+
         self.__load_parameters_from_file()
         self.__publish_parameters()
 
@@ -26,8 +32,20 @@ class ParameterManager:
         state_dict = ujson.loads(json_string)
         self._mode = state_dict.get("mode", self._mode)
 
+        if points_from_file := state_dict.get("weight_calibration_points"):
+            self._weight_calibration_points = [
+                CalibrationPoint(**p) for p in points_from_file
+            ]
+
     def __serialize_to_json(self):
-        return ujson.dumps({"mode": self._mode})
+        return ujson.dumps(
+            {
+                "mode": self._mode,
+                "weight_calibration_points": [
+                    p.to_dict() for p in self._weight_calibration_points
+                ],
+            }
+        )
 
     def __save_parameters_to_file(self):
         with open(STATE_JSON_FILE_NAME, "w") as f:
@@ -57,5 +75,15 @@ class ParameterManager:
         if new_value not in [MODE_OFF, MODE_AUTO, MODE_REMOTE]:
             raise ValueError("Wrong mode value")
         self._mode = new_value
+        self.__save_parameters_to_file()
+        self.__publish_parameters()
+
+    @property
+    def weight_calibration_points(self):
+        return self._weight_calibration_points
+
+    @weight_calibration_points.setter
+    def weight_calibration_points(self, new_value):
+        self._weight_calibration_points = new_value
         self.__save_parameters_to_file()
         self.__publish_parameters()

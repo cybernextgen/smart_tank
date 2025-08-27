@@ -16,6 +16,8 @@ from sensors import (
     HX711Sensor,
     IPAddressSensor,
     UptimeSensor,
+    CalibratedSensor,
+    CalibrationPoint,
 )
 from umqtt.robust import MQTTClient
 from wifi_manager import WifiManager
@@ -45,6 +47,8 @@ heater = Heater(13)
 sensors_data = {}
 
 ping_sheduler = sheduler.Sheduler(30000)
+
+weight_sensor_calibrated = None
 
 
 def make_mqtt_topic(path):
@@ -100,6 +104,7 @@ def handle_sensors():
         ip_address_sensor,
         bottom_temperature_sensor,
         load_cell_1_sensor,
+        weight_sensor_calibrated,
     ]:
         sensors_data[sensor.name] = sensor.get_measurement().to_dict()
 
@@ -142,6 +147,7 @@ def reset_device_after_delay(delay_sec=60):
 
 def main():
     global mqtt_client_id, parameters, mqtt_client
+    global weight_sensor_calibrated
 
     freq(160000000)
 
@@ -173,6 +179,10 @@ def main():
         reset_device_after_delay()
 
     parameters = ParameterManager(mqtt_client, make_mqtt_output_topic("/parameters"))
+
+    weight_sensor_calibrated = CalibratedSensor(
+        load_cell_1_sensor, *parameters.weight_calibration_points
+    )
 
     sensor_sheduler = sheduler.Sheduler(10000)
 
