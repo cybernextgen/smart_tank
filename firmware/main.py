@@ -41,7 +41,14 @@ ip_address_sensor = IPAddressSensor(wm)
 bottom_temperature_sensor = DS18B20Sensor(
     "bottom_temperature", pin_number=32, blocking_first_read=True
 )
-load_cell_1_sensor = HX711Sensor("load_cell_1", dout_pin_number=36, sck_pin_number=26)
+top_temperature_sensor = DS18B20Sensor(
+    "top_temperature", pin_number=33, blocking_first_read=True
+)
+load_cell_1_sensor = HX711Sensor("load_cell_1", dout_pin_number=36, sck_pin_number=25)
+load_cell_2_sensor = HX711Sensor("load_cell_2", dout_pin_number=39, sck_pin_number=26)
+load_cell_3_sensor = HX711Sensor("load_cell_3", dout_pin_number=34, sck_pin_number=27)
+load_cell_4_sensor = HX711Sensor("load_cell_4", dout_pin_number=22, sck_pin_number=21)
+
 heater = Heater(13)
 
 sensors_data = {}
@@ -103,8 +110,11 @@ def handle_sensors():
         uptime_sensor,
         ip_address_sensor,
         bottom_temperature_sensor,
+        top_temperature_sensor,
         load_cell_1_sensor,
-        weight_sensor_calibrated,
+        load_cell_2_sensor,
+        load_cell_3_sensor,
+        load_cell_4_sensor,
     ]:
         sensors_data[sensor.name] = sensor.get_measurement().to_dict()
 
@@ -184,7 +194,7 @@ def main():
         load_cell_1_sensor, *parameters.weight_calibration_points
     )
 
-    sensor_sheduler = sheduler.Sheduler(10000)
+    sensor_sheduler = sheduler.Sheduler(5000)
 
     while True:
         try:

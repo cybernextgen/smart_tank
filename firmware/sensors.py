@@ -120,7 +120,18 @@ class DS18B20Sensor(Sensor):
 
 class HX711Sensor(Sensor):
 
-    def __init__(self, name: str, dout_pin_number: int, sck_pin_number: int):
+    def __init__(
+        self,
+        name: str,
+        dout_pin_number: int,
+        sck_pin_number: int,
+        readings_for_averaging=20,
+    ):
+        self.__readings_for_averaging = readings_for_averaging
+        self.__prev_measurement = None
+        self.__accumulator = 0
+        self.__readings_count = 0
+
         try:
             self.__sensor_reader = hx711.HX711(dout_pin_number, sck_pin_number)
         except hx711.DeviceIsNotReady:
@@ -133,8 +144,23 @@ class HX711Sensor(Sensor):
             return Measurement(0, QUALITY_BAD)
 
         try:
-            value = self.__sensor_reader.read()
-            return Measurement(value, QUALITY_GOOD)
+            current_value = self.__sensor_reader.read()
+            self.__accumulator += current_value
+            self.__readings_count += 1
+
+            if self.__prev_measurement is None:
+                self.__prev_measurement = Measurement(current_value, QUALITY_GOOD)
+
+            if self.__readings_count == self.__readings_for_averaging:
+                self.__prev_measurement = Measurement(
+                    round(self.__accumulator / self.__readings_for_averaging),
+                    QUALITY_GOOD,
+                )
+                self.__readings_count = 0
+                self.__accumulator = 0
+
+            return self.__prev_measurement
+
         except hx711.DeviceIsNotReady:
             return Measurement(0, QUALITY_BAD)
 
