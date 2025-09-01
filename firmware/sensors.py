@@ -3,6 +3,7 @@ import gc
 import time
 import machine, onewire, ds18x20
 import hx711
+from heater import Heater
 
 
 QUALITY_GOOD = 0
@@ -165,6 +166,52 @@ class HX711Sensor(Sensor):
             return Measurement(0, QUALITY_BAD)
 
 
+class WeightSensor(Sensor):
+
+    def __init__(
+        self,
+        name: str,
+        load_cell_1: HX711Sensor,
+        load_cell_2: HX711Sensor,
+        load_cell_3: HX711Sensor,
+        load_cell_4: HX711Sensor,
+    ):
+        self.__load_cell_1 = load_cell_1
+        self.__load_cell_2 = load_cell_2
+        self.__load_cell_3 = load_cell_3
+        self.__load_cell_4 = load_cell_4
+
+        super().__init__(name)
+
+    def get_measurement(self):
+
+        accumulator = 0
+
+        for cell in [
+            self.__load_cell_1,
+            self.__load_cell_2,
+            self.__load_cell_3,
+            self.__load_cell_4,
+        ]:
+            m = cell.get_measurement()
+
+            if m.quality != QUALITY_GOOD:
+                return Measurement(0, QUALITY_BAD)
+            accumulator += m.value
+
+        return Measurement(accumulator, QUALITY_GOOD)
+
+
+class HeaterOutputPowerSensor(Sensor):
+
+    def __init__(self, name: str, heater: Heater):
+        self.__heater = heater
+        super().__init__(name)
+
+    def get_measurement(self):
+        return Measurement(self.__heater.get_power(), QUALITY_GOOD)
+
+
 class CalibrationPoint:
 
     def __init__(self, raw_value: float, calibrated_value: float):
@@ -201,5 +248,5 @@ class CalibratedSensor(Sensor):
         if not raw_measurement:
             raw_measurement = self.sensor.get_measurement()
 
-        calibrated_value = self.__k * raw_measurement.value + self.__b
+        calibrated_value = self.__k * raw_measurement.value - self.__b
         return Measurement(calibrated_value, raw_measurement.quality)

@@ -1,7 +1,7 @@
 import time
 
 
-class Sheduler:
+class Scheduler:
 
     def __init__(self, interval):
         self.__interval = interval

@@ -25,25 +25,66 @@ class ParameterManager:
             CalibrationPoint(1, 1),
         ]
 
+        self._bottom_temperature_calibration_points = [
+            CalibrationPoint(0, 0),
+            CalibrationPoint(1, 1),
+        ]
+
+        self._top_temperature_calibration_points = [
+            CalibrationPoint(0, 0),
+            CalibrationPoint(1, 1),
+        ]
+
         self.__load_parameters_from_file()
         self.__publish_parameters()
+
+    def __load_calibration_points_from_dict(self, target_dict, key):
+        if points_from_file := target_dict.get(key):
+            return [CalibrationPoint(**p) for p in points_from_file]
+
+    def __serialize_calibration_points_to_dict(self, points):
+        return [p.to_dict() for p in points]
 
     def __load_from_json(self, json_string):
         state_dict = ujson.loads(json_string)
         self._mode = state_dict.get("mode", self._mode)
+        self._output_max_power = state_dict.get(
+            "output_max_power", self._output_max_power
+        )
+        self._output_pwm_interval_ms = state_dict.get(
+            "output_pwm_interval_ms", self._output_pwm_interval_ms
+        )
 
-        if points_from_file := state_dict.get("weight_calibration_points"):
-            self._weight_calibration_points = [
-                CalibrationPoint(**p) for p in points_from_file
-            ]
+        if cp := self.__load_calibration_points_from_dict(
+            state_dict, "weight_calibration_points"
+        ):
+            self._weight_calibration_points = cp
+
+        if cp := self.__load_calibration_points_from_dict(
+            state_dict, "bottom_temperature_calibration_points"
+        ):
+            self._bottom_temperature_calibration_points = cp
+
+        if cp := self.__load_calibration_points_from_dict(
+            state_dict, "top_temperature_calibration_points"
+        ):
+            self._top_temperature_calibration_points = cp
 
     def __serialize_to_json(self):
         return ujson.dumps(
             {
                 "mode": self._mode,
-                "weight_calibration_points": [
-                    p.to_dict() for p in self._weight_calibration_points
-                ],
+                "output_max_power": self._output_max_power,
+                "output_pwm_interval_ms": self._output_pwm_interval_ms,
+                "weight_calibration_points": self.__serialize_calibration_points_to_dict(
+                    self._weight_calibration_points
+                ),
+                "bottom_temperature_calibration_points": self.__serialize_calibration_points_to_dict(
+                    self._bottom_temperature_calibration_points
+                ),
+                "top_temperature_calibration_points": self.__serialize_calibration_points_to_dict(
+                    self._top_temperature_calibration_points
+                ),
             }
         )
 
@@ -85,5 +126,45 @@ class ParameterManager:
     @weight_calibration_points.setter
     def weight_calibration_points(self, new_value):
         self._weight_calibration_points = new_value
+        self.__save_parameters_to_file()
+        self.__publish_parameters()
+
+    @property
+    def bottom_temperature_calibration_points(self):
+        return self._bottom_temperature_calibration_points
+
+    @bottom_temperature_calibration_points.setter
+    def bottom_temperature_calibration_points(self, new_value):
+        self._bottom_temperature_calibration_points = new_value
+        self.__save_parameters_to_file()
+        self.__publish_parameters()
+
+    @property
+    def top_temperature_calibration_points(self):
+        return self._top_temperature_calibration_points
+
+    @top_temperature_calibration_points.setter
+    def top_temperature_calibration_points(self, new_value):
+        self._top_temperature_calibration_points = new_value
+        self.__save_parameters_to_file()
+        self.__publish_parameters()
+
+    @property
+    def output_max_power(self):
+        return self._output_max_power
+
+    @output_max_power.setter
+    def output_max_power(self, new_value):
+        self._output_max_power = new_value
+        self.__save_parameters_to_file()
+        self.__publish_parameters()
+
+    @property
+    def output_pwm_interval_ms(self):
+        return self._output_pwm_interval_ms
+
+    @output_pwm_interval_ms.setter
+    def output_pwm_interval_ms(self, new_value):
+        self._output_pwm_interval_ms = new_value
         self.__save_parameters_to_file()
         self.__publish_parameters()
