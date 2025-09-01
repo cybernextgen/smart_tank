@@ -17,3 +17,104 @@ Required modules:
 - ESP32_devkitc_v4 module (ESP32WROOM32D based development board);
 
 # Software
+
+## Communication protocol
+
+Device communicates with clients apps using MQTT protocol. There are two data streams - from device to client and from client to device.
+
+### Topics from device to client
+
+#### **{{device_name}}/from_device/parameters**
+
+Device publish (after power on or after changes occurred) parameters, which are stored in non-volatile memory. Messages are retained. Message example:
+
+```json
+{
+  "bottom_temperature_calibration_points": [
+    { "calibrated_value": 0, "raw_value": 0 },
+    { "calibrated_value": 1, "raw_value": 1 }
+  ],
+  "output_max_power": 70, // heater maximum output power limitation, percents
+  "mode": 0, // device working mode. 0 - disabled, 1 - auto, 2 - remote
+  "output_pwm_interval_ms": 1000, // heater PWM pulses interval in milliseconds
+  "weight_calibration_points": [
+    { "calibrated_value": 0, "raw_value": -224980 },
+    { "calibrated_value": 10000, "raw_value": 1705616 }
+  ],
+  "top_temperature_calibration_points": [
+    { "calibrated_value": 0, "raw_value": 0 },
+    { "calibrated_value": 1, "raw_value": 1 }
+  ]
+}
+```
+
+#### **{{device_name}}/from_device/sensors**
+
+Device publish current sensors measured values and it's quality:
+
+- 0 - measured value are valid;
+- 1 - measured value are bad (sensor not ready or not working properly).
+
+Data published every 5 seconds after device powered on. Message example:
+
+```json
+{
+  "heater_output_power": { "value": 0, "quality": 0 }, // heater output power, percents
+  "top_temperature": { "value": 25.5625, "quality": 0 }, // raw temperature, °C
+  "bottom_temperature_calibrated": { "value": 24.4375, "quality": 0 }, // calibrated temperature, °C
+  "bottom_temperature": { "value": 24.4375, "quality": 0 }, // raw temperature, °C
+  "weight": { "value": 1121544, "quality": 0 }, // raw weight ADS code
+  "ip_address": { "value": "192.168.1.110", "quality": 0 },
+  "free_memory": { "value": 97744, "quality": 0 }, // MCU free RAM, bytes
+  "weight_calibrated": { "value": 6974.654, "quality": 0 }, // calibrated weight, gramms
+  "top_temperature_calibrated": { "value": 25.5625, "quality": 0 }, // calibrated temperature, °C
+  "uptime": { "value": 2606.643, "quality": 0 } // device uptime, seconds
+}
+```
+
+#### **{{device_name}}/from_device/pong**
+
+Device publish empty message after recieving message from topic `{{device_name}}/to_device/ping`
+
+#### **{{device_name}}/from_device/status**
+
+Device publish execution status of last recieved command from client. Message example:
+
+```json
+{ "message": "wrong device mode", "status": 400 }
+```
+
+or
+
+```json
+{ "message": "ok", "status": 200 }
+```
+
+### Topics from client to device
+
+#### **{{device_name}}/to_device/parameters/mode**
+
+Client publish message with new device working mode value:
+
+- 0 - disabled;
+- 1 - auto mode;
+- 2 - remote mode.
+
+#### **{{device_name}}/to_device/parameters/(bottom_temperature_calibration_points|top_temperature_calibration_points|weight_calibration_points)**
+
+Client publish message with calibration points data. Data must contain array of two calibration points. Message example:
+
+```json
+[
+  { "calibrated_value": 0, "raw_value": 0 },
+  { "calibrated_value": 1, "raw_value": 1 }
+]
+```
+
+#### **{{device_name}}/to_device/heater_power**
+
+Client publish message with new heater power value. Works only for remote mode.
+
+#### **{{device_name}}/to_device/ping**
+
+Client publish empty message to this topic. Device must reply with empty message using topic `{{device_name}}/from_device/pong`. When device in remote mode, client must ping device at least once every 30 seconds. Otherwise, mode will be switched to "disabled".
