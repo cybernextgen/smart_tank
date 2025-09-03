@@ -28,23 +28,29 @@ Device communicates with clients apps using MQTT protocol. There are two data st
 
 Device publish (after power on or after changes occurred) parameters, which are stored in non-volatile memory. Messages are retained. Message example:
 
-```json
+```js
 {
-  "bottom_temperature_calibration_points": [
-    { "calibrated_value": 0, "raw_value": 0 },
-    { "calibrated_value": 1, "raw_value": 1 }
-  ],
+  "top_temperature_ah": 70.5, // alarm temperature setpoint, °C, heater shutdown,
+  "bottom_temperature_ah": 90 // alarm temperature setpoint, °C, heater shutdown
+  "bottom_temperatrue_sp": 70, // temperature setpoint for automatic mode, °C
+  "weight_sp": 5500.0, // weight setpoint for automatic mode, gramms
   "output_max_power": 70, // heater maximum output power limitation, percents
-  "mode": 0, // device working mode. 0 - disabled, 1 - auto, 2 - remote
+  "mode": 1, // device working mode. 0 - disabled, 1 - auto, 2 - remote
   "output_pwm_interval_ms": 1000, // heater PWM pulses interval in milliseconds
+  "pid_p": 1.5, // PI regulator proportional value
+  "pid_i": 10, // PI regulator integral value
   "weight_calibration_points": [
     { "calibrated_value": 0, "raw_value": -224980 },
     { "calibrated_value": 10000, "raw_value": 1705616 }
   ],
+  "bottom_temperature_calibration_points": [
+    { "calibrated_value": 0, "raw_value": 0 },
+    { "calibrated_value": 1, "raw_value": 1 }
+  ],
   "top_temperature_calibration_points": [
     { "calibrated_value": 0, "raw_value": 0 },
     { "calibrated_value": 1, "raw_value": 1 }
-  ]
+  ],
 }
 ```
 
@@ -57,7 +63,7 @@ Device publish current sensors measured values and it's quality:
 
 Data published every 5 seconds after device powered on. Message example:
 
-```json
+```js
 {
   "heater_output_power": { "value": 0, "quality": 0 }, // heater output power, percents
   "top_temperature": { "value": 25.5625, "quality": 0 }, // raw temperature, °C
@@ -80,13 +86,13 @@ Device publish empty message after recieving message from topic `{{device_name}}
 
 Device publish execution status of last recieved command from client. Message example:
 
-```json
+```js
 { "message": "wrong device mode", "status": 400 }
 ```
 
 or
 
-```json
+```js
 { "message": "ok", "status": 200 }
 ```
 
@@ -100,15 +106,19 @@ Client publish message with new device working mode value:
 - 1 - auto mode;
 - 2 - remote mode.
 
+#### **{{device_name}}/to_device/parameters/(top_temperature_ah|bottom_temperature_ah|bottom_temperatrue_sp|weight_sp|pid_p|pid_i)**
+
+Client publish new parameter value as float pointing number.
+
 #### **{{device_name}}/to_device/parameters/(bottom_temperature_calibration_points|top_temperature_calibration_points|weight_calibration_points)**
 
 Client publish message with calibration points data. Data must contain array of two calibration points. Message example:
 
-```json
+```js
 [
-  { "calibrated_value": 0, "raw_value": 0 },
-  { "calibrated_value": 1, "raw_value": 1 }
-]
+  { calibrated_value: 0, raw_value: 0 },
+  { calibrated_value: 1, raw_value: 1 }
+];
 ```
 
 #### **{{device_name}}/to_device/heater_power**

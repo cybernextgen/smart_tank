@@ -58,10 +58,22 @@ def mqtt_message_handler(btopic, bmsg):
     if m := re.search(make_mqtt_input_topic("/parameters/(.+)"), btopic):
         parameter_name = m.group(1)
         try:
-            if parameter_name == b"mode":
-                parameters.mode = int(bmsg)
+            if parameter_name in [
+                b"mode",
+                b"bottom_temperature_ah",
+                b"bottom_temperature_sp",
+                b"top_temperature_ah",
+                b"weight_sp",
+                b"pid_p",
+                b"pid_i",
+            ]:
+                if parameter_name == b"mode":
+                    parameter_value = int(bmsg)
+                else:
+                    parameter_value = float(bmsg)
+                setattr(parameters, parameter_name.decode(), parameter_value)
                 send_status()
-            if parameter_name == b"output_max_power":
+            elif parameter_name == b"output_max_power":
                 new_limit = int(bmsg)
                 if new_limit < 10 or new_limit > 100:
                     send_status(
@@ -72,7 +84,7 @@ def mqtt_message_handler(btopic, bmsg):
                 parameters.output_max_power = new_limit
                 device.heater.power_limit_percent = new_limit
                 send_status()
-            if parameter_name == b"output_pwm_interval_ms":
+            elif parameter_name == b"output_pwm_interval_ms":
                 new_interval = int(bmsg)
                 if new_limit < 100 or new_limit > 2000:
                     send_status(
