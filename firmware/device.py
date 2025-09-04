@@ -11,6 +11,7 @@ from sensors import (
     WeightSensor,
     HeaterOutputPowerSensor,
 )
+from PID import PID
 
 
 class Device:
@@ -32,6 +33,8 @@ class Device:
     heater_output_power_sensor: HeaterOutputPowerSensor
 
     parameters: ParameterManager
+
+    temperature_regulator: PID
 
     sensors_data = {}
 
@@ -85,6 +88,15 @@ class Device:
         )
         self.wight_sensor_calibrated = CalibratedSensor(
             self.weight_sensor, *parameters.weight_calibration_points
+        )
+
+        self.temperature_regulator = PID(
+            parameters.pid_p,
+            parameters.pid_i,
+            setpoint=parameters.bottom_temperature_sp,
+            scale="s",
+            sample_time=5,
+            output_limits=[0, 100],
         )
 
     def read_sensors_data(self):

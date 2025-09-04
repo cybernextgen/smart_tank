@@ -16,6 +16,14 @@ class Measurement:
         self.value = value
         self.quality = quality
 
+    @property
+    def is_good(self):
+        return self.quality == QUALITY_GOOD
+
+    @property
+    def is_bad(self):
+        return not self.is_good
+
     def to_dict(self):
         return {"value": self.value, "quality": self.quality}
 
