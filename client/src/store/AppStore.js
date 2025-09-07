@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import mqtt from 'mqtt'
 import { Measurement } from '../models/Measurement'
 import { Message } from '../models/Message'
+import { CalibrationPoint } from '../models/CalibrationPoint'
 
 export const useAppStore = defineStore(
   'appStore',
@@ -33,6 +34,7 @@ export const useAppStore = defineStore(
 
     const weight = ref(new Measurement())
     const weightCalibrated = ref(new Measurement())
+    const weightCalibratedKg = ref(new Measurement())
     const weightCalibratedHistory = ref([])
 
     const heaterOutputPower = ref(new Measurement())
@@ -40,6 +42,25 @@ export const useAppStore = defineStore(
 
     const ipAddress = ref(new Measurement())
     const freeMemory = ref(new Measurement())
+
+    const bottomTemperatureSP = ref(0)
+    const bottomTemperatureAH = ref(0)
+    const weightSP = ref(0)
+    const topTemperatureAH = ref(0)
+    const pidP = ref(0)
+    const pidI = ref(0)
+    const weightCalibrationPoints = ref([
+      new CalibrationPoint(0, 0),
+      new CalibrationPoint(1, 1)
+    ])
+    const bottomTemperatureCalibrationPoints = ref([
+      new CalibrationPoint(0, 0),
+      new CalibrationPoint(1, 1)
+    ])
+    const topTemperatureCalibrationPoints = ref([
+      new CalibrationPoint(0, 0),
+      new CalibrationPoint(1, 1)
+    ])
 
     const messagesHistory = ref([])
 
@@ -83,7 +104,19 @@ export const useAppStore = defineStore(
       }
     }
 
-    function addMessageToHistory(rawData) {}
+    function setCalibrationPoints(rawData, variable) {
+      if (!rawData || rawData.length != 2) return
+
+      variable.value = []
+      rawData.forEach((element) => {
+        variable.value.push(
+          new CalibrationPoint(
+            element['raw_value'],
+            element['calibrated_value']
+          )
+        )
+      })
+    }
 
     async function connect() {
       try {
@@ -108,8 +141,27 @@ export const useAppStore = defineStore(
             clearPongInterval()
           } else if (topic === getOutputTopic('parameters')) {
             const messageJSON = JSON.parse(message)
-            console.log(messageJSON)
             mode.value = messageJSON['mode'] || 0
+            bottomTemperatureSP.value =
+              messageJSON['bottom_temperature_sp'] || 0
+            bottomTemperatureAH.value =
+              messageJSON['bottom_temperature_ah'] || 0
+            weightSP.value = messageJSON['weight_sp'] || 0
+            topTemperatureAH.value = messageJSON['top_temperature_ah'] || 0
+            pidI.value = messageJSON['pid_i'] || 0
+            pidP.value = messageJSON['pid_p'] || 0
+            setCalibrationPoints(
+              messageJSON['weight_calibration_points'],
+              weightCalibrationPoints
+            )
+            setCalibrationPoints(
+              messageJSON['bottom_temperature_calibration_points'],
+              bottomTemperatureCalibrationPoints
+            )
+            setCalibrationPoints(
+              messageJSON['top_temperature_calibration_points'],
+              topTemperatureCalibrationPoints
+            )
           } else if (topic === getOutputTopic('sensors')) {
             const sensorsDataJSON = JSON.parse(message)
 
@@ -132,7 +184,9 @@ export const useAppStore = defineStore(
               sensorsDataJSON['weight_calibrated'],
               weightCalibrated
             )
-            weightCalibrated.value.value = (
+            weightCalibrated.value.value =
+              weightCalibrated.value.value.toFixed(0)
+            weightCalibratedKg.value.value = (
               weightCalibrated.value.value / 1000
             ).toFixed(2)
 
@@ -156,7 +210,7 @@ export const useAppStore = defineStore(
               currentDatetime
             )
             addToHistory(
-              weightCalibrated.value,
+              weightCalibratedKg.value,
               weightCalibratedHistory,
               currentDatetime
             )
@@ -222,6 +276,56 @@ export const useAppStore = defineStore(
       }
     }
 
+    async function changeBottomTemperatureSP(newValue) {
+      return changeParameter('bottom_temperature_sp', newValue)
+    }
+
+    async function changeBottomTemperatureAH(newValue) {
+      return changeParameter('bottom_temperature_ah', newValue)
+    }
+
+    async function changeTopTemperatureAH(newValue) {
+      return changeParameter('top_temperature_ah', newValue)
+    }
+
+    async function changeWeightSP(newValue) {
+      return changeParameter('weight_sp', newValue)
+    }
+
+    async function changePidP(newValue) {
+      return changeParameter('pid_p', newValue)
+    }
+
+    async function changePidI(newValue) {
+      return changeParameter('pid_i', newValue)
+    }
+
+    async function changeParameter(parameterName, parameterValue) {
+      if (!mqttClient.value) return
+
+      const parameterNames = [
+        'mode',
+        'top_temperature_ah',
+        'bottom_temperature_ah',
+        'bottom_temperature_sp',
+        'weight_sp',
+        'output_max_power',
+        'output_pwm_interval_ms',
+        'pid_p',
+        'pid_i'
+      ]
+      if (!parameterNames.includes(parameterName)) return
+
+      try {
+        await mqttClient.value.publishAsync(
+          getInputTopic(`parameters/${parameterName}`),
+          `${parameterValue}`
+        )
+      } catch (e) {
+        resetConnectionFlags()
+      }
+    }
+
     async function changeMode(newMode) {
       if (!mqttClient.value) return
 
@@ -248,6 +352,48 @@ export const useAppStore = defineStore(
       }
     }
 
+    async function changeCalibrationPoints(parameterName, newPoints) {
+      if (!mqttClient.value) return
+
+      const parameterNames = [
+        'weight_calibration_points',
+        'bottom_temperature_calibration_points',
+        'top_temperature_calibration_points'
+      ]
+      if (!parameterNames.includes(parameterName)) return
+
+      const p = []
+      newPoints.forEach((element) => {
+        p.push({
+          raw_value: element.rawValue,
+          calibrated_value: element.calibratedValue
+        })
+      })
+
+      await mqttClient.value.publishAsync(
+        getInputTopic(`parameters/${parameterName}`),
+        JSON.stringify(p)
+      )
+    }
+
+    async function changeWeightCalibrationPoints(newPoints) {
+      return changeCalibrationPoints('weight_calibration_points', newPoints)
+    }
+
+    async function changeBottomTemperatureCalibrationPoints(newPoints) {
+      return changeCalibrationPoints(
+        'bottom_temperature_calibration_points',
+        newPoints
+      )
+    }
+
+    async function changeTopTemperatureCalibrationPoints(newPoints) {
+      return changeCalibrationPoints(
+        'top_temperature_calibration_points',
+        newPoints
+      )
+    }
+
     return {
       mqttHost,
       mqttUsername,
@@ -264,6 +410,7 @@ export const useAppStore = defineStore(
       topTemperatureCalibrated,
       weight,
       weightCalibrated,
+      weightCalibratedKg,
       ipAddress,
       freeMemory,
       heaterOutputPower,
@@ -272,10 +419,28 @@ export const useAppStore = defineStore(
       weightCalibratedHistory,
       heaterOutputPowerHistory,
       messagesHistory,
+      bottomTemperatureSP,
+      bottomTemperatureAH,
+      topTemperatureAH,
+      weightSP,
+      pidI,
+      pidP,
+      weightCalibrationPoints,
+      bottomTemperatureCalibrationPoints,
+      topTemperatureCalibrationPoints,
       connect,
       disconnect,
       changeMode,
-      setHeaterOutputPower
+      setHeaterOutputPower,
+      changeBottomTemperatureSP,
+      changeBottomTemperatureAH,
+      changeTopTemperatureAH,
+      changeWeightSP,
+      changePidP,
+      changePidI,
+      changeWeightCalibrationPoints,
+      changeBottomTemperatureCalibrationPoints,
+      changeTopTemperatureCalibrationPoints
     }
   },
 

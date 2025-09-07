@@ -35,20 +35,28 @@
       >
     </div>
   </nav>
-  <div class="row">
-    <div class="col">
-      <DeviceModeSwitcher></DeviceModeSwitcher>
-      <HeaterPowerSwitcher></HeaterPowerSwitcher>
-      <CurrentSensorsData></CurrentSensorsData>
+  <div v-show="isDashboardTabActive">
+    <div class="row">
+      <div class="col">
+        <DeviceModeSwitcher></DeviceModeSwitcher>
+        <HeaterPowerSwitcher></HeaterPowerSwitcher>
+        <CurrentSensorsData></CurrentSensorsData>
+      </div>
+      <div class="col">
+        <SensorsHistoryCharts></SensorsHistoryCharts>
+      </div>
     </div>
-    <div class="col">
-      <SensorsHistoryCharts></SensorsHistoryCharts>
+    <div class="row">
+      <div class="col">
+        <MessagesHistory></MessagesHistory>
+      </div>
     </div>
   </div>
-  <div class="row">
-    <div class="col">
-      <MessagesHistory></MessagesHistory>
-    </div>
+  <div v-show="isSetpointsTabActive">
+    <AppDeviceSetpoints></AppDeviceSetpoints>
+  </div>
+  <div v-show="isCalibrationTabActive">
+    <AppDeviceCalibration></AppDeviceCalibration>
   </div>
 </template>
 
@@ -61,6 +69,8 @@ import CurrentSensorsData from './CurrentSensorsData.vue'
 import SensorsHistoryCharts from './SensorsHistoryCharts.vue'
 import HeaterPowerSwitcher from './HeaterPowerSwitcher.vue'
 import MessagesHistory from './MessagesHistory.vue'
+import AppDeviceSetpoints from './AppDeviceSetpoints.vue'
+import AppDeviceCalibration from './AppDeviceCalibration.vue'
 
 const appStore = useAppStore()
 const confirmDialog = ref()

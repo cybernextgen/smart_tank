@@ -31,6 +31,7 @@ wifi_manager = WifiManager(
 device = None
 
 ping_sheduler = scheduler.Scheduler(30000)
+weight_sp_count = 0
 
 
 def make_mqtt_topic(path):
@@ -90,7 +91,7 @@ def mqtt_message_handler(btopic, bmsg):
                 new_limit = int(bmsg)
                 if new_limit < 10 or new_limit > 100:
                     send_status(
-                        400, b"output max power value should be within 10...100%"
+                        400, b"Output max power value should be within 10...100%"
                     )
                     return
 
@@ -101,7 +102,7 @@ def mqtt_message_handler(btopic, bmsg):
                 new_interval = int(bmsg)
                 if new_limit < 100 or new_limit > 2000:
                     send_status(
-                        400, b"output pwm interval value should be within 100...2000 ms"
+                        400, b"Output pwm interval value should be within 100...2000 ms"
                     )
                     return
 
@@ -137,7 +138,7 @@ def mqtt_message_handler(btopic, bmsg):
                 send_status()
 
         except Exception as e:
-            send_status(400, "bad parameter name or parameter value")
+            send_status(400, "Bad parameter name or parameter value")
     elif btopic == make_mqtt_input_topic("/ping"):
         ping_sheduler.reset()
         mqtt_client.publish(make_mqtt_output_topic("/pong"), "")
@@ -148,9 +149,9 @@ def mqtt_message_handler(btopic, bmsg):
                 device.heater.set_power(new_power)
                 send_status()
             else:
-                send_status(400, "wrong device mode")
+                send_status(400, "Wrong device mode")
         except Exception as e:
-            send_status(400, "wrong power value")
+            send_status(400, "Wrong power value")
 
 
 def read_sensors_data():
@@ -163,20 +164,59 @@ def publish_sensors_data():
 
 
 def handle_ah():
-    top_temperature_measurement = (
-        device.top_temperature_sensor_calibrated.get_measurement()
-    )
-    bottom_temperature_measurement = (
-        device.bottom_temperature_sensor_calibrated.get_measurement()
+    if device.parameters.mode == MODE_OFF:
+        return
+
+    top_temperature_measurement = device.sensors_data.get(
+        device.top_temperature_sensor_calibrated.name
     )
 
+    bottom_temperature_measurement = device.sensors_data.get(
+        device.bottom_temperature_sensor_calibrated.name
+    )
+
+    if not bottom_temperature_measurement or bottom_temperature_measurement.is_bad:
+        disable_device()
+        send_status(500, "Device disabled! Bottom temperature sensor malfunction.")
+        return
+
+    if bottom_temperature_measurement.value >= parameters.bottom_temperature_ah:
+        disable_device()
+        send_status(500, "Device disabled! Bottom temperature above AH setpoint.")
+        return
+
     if (
-        top_temperature_measurement.is_bad
-        or bottom_temperature_measurement.is_bad
-        or top_temperature_measurement.value >= parameters.top_temperature_ah
-        or bottom_temperature_measurement.value >= parameters.bottom_temperature_ah
+        top_temperature_measurement
+        and top_temperature_measurement.is_good
+        and top_temperature_measurement.value >= parameters.top_temperature_ah
     ):
         disable_device()
+        send_status(500, "Device disabled! Top temperature above AH setpoint.")
+        return
+
+
+def handle_sp():
+    if device.parameters.mode == MODE_OFF:
+        return
+
+    current_weight = device.sensors_data.get(device.wight_sensor_calibrated.name)
+
+    if current_weight.is_bad:
+        disable_device()
+        send_status(500, "Device disabled! Weight sensor malfunction.")
+        return
+
+    global weight_sp_count
+    if current_weight.value > device.parameters.weight_sp:
+        weight_sp_count = 0
+    else:
+        weight_sp_count += 1
+
+    if weight_sp_count >= 20:
+        weight_sp_count = 0
+        disable_device()
+        send_status(200, "Done! Weight setpoint reached.")
+        return
 
 
 def handle_off_mode():
@@ -193,22 +233,22 @@ def handle_auto_mode():
     else:
         if not device.temperature_regulator.auto_mode:
             current_power = device.heater_output_power_sensor.get_measurement()
-            if current_power.is_good:
-                device.temperature_regulator.set_auto_mode(
-                    True, last_output=current_power.value
-                )
-            else:
+            if current_power.is_bad:
                 disable_device()
+                send_status(
+                    500, "Device disabled! Heater output power sensor malfunction."
+                )
                 return
+            device.temperature_regulator.set_auto_mode(
+                True, last_output=current_power.value
+            )
 
-    current_temperature = device.bottom_temperature_sensor_calibrated.get_measurement()
+    current_temperature = device.sensors_data.get(
+        device.bottom_temperature_sensor_calibrated.name
+    )
     if current_temperature.is_bad:
         disable_device()
-        return
-
-    current_weight = device.wight_sensor_calibrated.get_measurement()
-    if current_weight.is_bad or current_weight.value <= device.parameters.weight_sp:
-        disable_device()
+        send_status(500, "Device disabled! Bottom temperature sensor malfunction.")
         return
 
     new_output = device.temperature_regulator(current_temperature.value)
@@ -223,6 +263,7 @@ def handle_remote_mode():
 
     if ping_sheduler.is_timeout():
         disable_device()
+        send_status(500, "Device disabled! Remote server not responded.")
         return
 
 
@@ -280,16 +321,21 @@ def main():
     read_sensors_data_scheduler = scheduler.Scheduler(1000)
     publish_sensors_data_scheduler = scheduler.Scheduler(5000)
 
+    first_loop = True
     while True:
         try:
             mqtt_client.check_msg()
 
-            if read_sensors_data_scheduler.is_timeout():
+            if read_sensors_data_scheduler.is_timeout() or first_loop:
                 read_sensors_data()
+                handle_sp()
 
-            if publish_sensors_data_scheduler.is_timeout():
+            if publish_sensors_data_scheduler.is_timeout() or first_loop:
                 publish_sensors_data()
 
+            first_loop = False
+
+            handle_ah()
             handle_auto_mode()
             handle_remote_mode()
             handle_off_mode()

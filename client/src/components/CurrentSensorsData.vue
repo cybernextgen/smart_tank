@@ -38,7 +38,7 @@
           <tr>
             <td>Weight</td>
             <td>Kg</td>
-            <td>{{ appStore.weightCalibrated.value }}</td>
+            <td>{{ appStore.weightCalibratedKg.value }}</td>
           </tr>
           <tr>
             <td>Heater output power</td>

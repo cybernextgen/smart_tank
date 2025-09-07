@@ -62,7 +62,7 @@ class ParameterManager:
             "bottom_temperature_ah", self._bottom_temperature_ah
         )
         self._bottom_temperature_sp = state_dict.get(
-            "bottom_temperatrue_sp", self._bottom_temperature_sp
+            "bottom_temperature_sp", self._bottom_temperature_sp
         )
         self._top_temperature_ah = state_dict.get(
             "top_temperature_ah", self._top_temperature_ah
@@ -93,7 +93,7 @@ class ParameterManager:
                 "output_max_power": self._output_max_power,
                 "output_pwm_interval_ms": self._output_pwm_interval_ms,
                 "bottom_temperature_ah": self._bottom_temperature_ah,
-                "bottom_temperatrue_sp": self._bottom_temperature_sp,
+                "bottom_temperature_sp": self._bottom_temperature_sp,
                 "top_temperature_ah": self._top_temperature_ah,
                 "weight_sp": self._weight_sp,
                 "pid_p": self._pid_p,

@@ -32,7 +32,7 @@ Device publish (after power on or after changes occurred) parameters, which are 
 {
   "top_temperature_ah": 70.5, // alarm temperature setpoint, °C, heater shutdown,
   "bottom_temperature_ah": 90 // alarm temperature setpoint, °C, heater shutdown
-  "bottom_temperatrue_sp": 70, // temperature setpoint for automatic mode, °C
+  "bottom_temperature_sp": 70, // temperature setpoint for automatic mode, °C
   "weight_sp": 5500.0, // weight setpoint for automatic mode, gramms
   "output_max_power": 70, // heater maximum output power limitation, percents
   "mode": 1, // device working mode. 0 - disabled, 1 - auto, 2 - remote

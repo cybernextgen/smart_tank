@@ -34,7 +34,7 @@
     <p>
       <label for="mqtt_password__input">MQTT password</label>
       <input
-        type="text"
+        type="password"
         id="mqtt_password__input"
         v-model="appStore.mqttPassword"
         :disabled="isConnectionPending"
