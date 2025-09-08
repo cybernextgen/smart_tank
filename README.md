@@ -7,24 +7,75 @@ Upgrade for boiling device. Adds "smart" functions to device, such as:
 - Measurement product temperature with several DS18B20 sensors;
 - Automatic mode (stabilizing product temperature with PID regulator until weight not ritched setpoint) or remote mode (device can be controlled from remote server);
 - Standalone HTTP server for initial configuration (using WiFi AdHoc mode);
-- MQTT over WiFi;
-- OLED display.
+- MQTT over WiFi.
 
-# Hardware
+## Hardware
 
-Required modules:
+### Required modules
 
 - ESP32_devkitc_v4 module (ESP32WROOM32D based development board);
+- Step down DC-DC converter (for example, LM2596 or XL4015 based);
+- Power supply 12v 5a;
+- Miniature circuit breaker 1p B6;
+- 4x10Kg load cells;
+- 4xHX711 load cells amplifier;
+- 2xDS18B20 temperature sensors with heat resistent wires (PTFE or silicon insulation).
 
-# Software
+## Software
 
-## Communication protocol
+### Firmware
+
+1. Install `micropython==1.25.0` release into the ESP32 devboard (https://micropython.org/download/ESP32_GENERIC/);
+2. Clone this repo. Install dependencies:
+
+```sh
+   $ git clone https://github.com/cybernextgen/smart_tank
+   $ cd smart_tank/firmware
+   $ uv sync
+
+```
+
+3. Connect the devboard to computer, transfer firmware files:
+
+```sh
+$ uv run mpremote fs cp *.py :.
+```
+
+### Client app
+
+1. Install `nodejs>=22.0` engine;
+2. Clone this repo. Install dependencies:
+
+```sh
+$ git clone https://github.com/cybernextgen/smart_tank
+$ cd smart_tank/client
+
+# Start dev-server
+$ npm start
+
+# Package app
+$ npm run package
+# Start app
+$ ./out/client-linux-x64/client
+```
+
+### Screenshots
+
+![Connection settings](/img/connection_settings.png)
+
+![Dashboard](/img/dashboard.png)
+
+![Dashboard](/img/setpoints.png)
+
+![Dashboard](/img/calibration.png)
+
+### Communication protocol
 
 Device communicates with clients apps using MQTT protocol. There are two data streams - from device to client and from client to device.
 
-### Topics from device to client
+#### Topics from device to client
 
-#### **{{device_name}}/from_device/parameters**
+##### **{{device_name}}/from_device/parameters**
 
 Device publish (after power on or after changes occurred) parameters, which are stored in non-volatile memory. Messages are retained. Message example:
 
@@ -54,7 +105,7 @@ Device publish (after power on or after changes occurred) parameters, which are 
 }
 ```
 
-#### **{{device_name}}/from_device/sensors**
+##### **{{device_name}}/from_device/sensors**
 
 Device publish current sensors measured values and it's quality:
 
@@ -78,11 +129,11 @@ Data published every 5 seconds after device powered on. Message example:
 }
 ```
 
-#### **{{device_name}}/from_device/pong**
+##### **{{device_name}}/from_device/pong**
 
 Device publish empty message after recieving message from topic `{{device_name}}/to_device/ping`
 
-#### **{{device_name}}/from_device/status**
+##### **{{device_name}}/from_device/status**
 
 Device publish execution status of last recieved command from client. Message example:
 
@@ -96,9 +147,9 @@ or
 { "message": "ok", "status": 200 }
 ```
 
-### Topics from client to device
+#### Topics from client to device
 
-#### **{{device_name}}/to_device/parameters/mode**
+##### **{{device_name}}/to_device/parameters/mode**
 
 Client publish message with new device working mode value:
 
@@ -106,11 +157,11 @@ Client publish message with new device working mode value:
 - 1 - auto mode;
 - 2 - remote mode.
 
-#### **{{device_name}}/to_device/parameters/(top_temperature_ah|bottom_temperature_ah|bottom_temperatrue_sp|weight_sp|pid_p|pid_i)**
+##### **{{device_name}}/to_device/parameters/(top_temperature_ah|bottom_temperature_ah|bottom_temperatrue_sp|weight_sp|pid_p|pid_i)**
 
 Client publish new parameter value as float pointing number.
 
-#### **{{device_name}}/to_device/parameters/(bottom_temperature_calibration_points|top_temperature_calibration_points|weight_calibration_points)**
+##### **{{device_name}}/to_device/parameters/(bottom_temperature_calibration_points|top_temperature_calibration_points|weight_calibration_points)**
 
 Client publish message with calibration points data. Data must contain array of two calibration points. Message example:
 
@@ -121,10 +172,10 @@ Client publish message with calibration points data. Data must contain array of 
 ];
 ```
 
-#### **{{device_name}}/to_device/heater_power**
+##### **{{device_name}}/to_device/heater_power**
 
 Client publish message with new heater power value. Works only for remote mode.
 
-#### **{{device_name}}/to_device/ping**
+##### **{{device_name}}/to_device/ping**
 
 Client publish empty message to this topic. Device must reply with empty message using topic `{{device_name}}/from_device/pong`. When device in remote mode, client must ping device at least once every 30 seconds. Otherwise, mode will be switched to "disabled".
