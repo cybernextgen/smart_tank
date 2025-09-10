@@ -93,11 +93,13 @@ class Device:
         self.temperature_regulator = PID(
             parameters.pid_p,
             parameters.pid_i,
+            parameters.pid_d,
             setpoint=parameters.bottom_temperature_sp,
             scale="s",
             sample_time=5,
             output_limits=[0, 100],
         )
+        self.temperature_regulator.auto_mode = False
 
     def read_sensors_data(self):
         self.sensors_data = {}

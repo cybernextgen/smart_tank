@@ -52,46 +52,46 @@ class FreeMemorySensor(Sensor):
 class UptimeSensor(Sensor):
 
     def __init__(self):
-        self.__current_ticks = time.ticks_ms()
-        self.__old_ticks = 0
-        self.__uptime_ms = 0
+        self._current_ticks = time.ticks_ms()
+        self._old_ticks = 0
+        self._uptime_ms = 0
         super().__init__("uptime")
 
     def get_measurement(self):
-        self.__old_ticks = self.__current_ticks
-        self.__current_ticks = time.ticks_ms()
-        self.__uptime_ms = self.__uptime_ms + time.ticks_diff(
-            self.__current_ticks, self.__old_ticks
+        self._old_ticks = self._current_ticks
+        self._current_ticks = time.ticks_ms()
+        self._uptime_ms = self._uptime_ms + time.ticks_diff(
+            self._current_ticks, self._old_ticks
         )
-        return Measurement(self.__uptime_ms / 1000, QUALITY_GOOD)
+        return Measurement(self._uptime_ms / 1000, QUALITY_GOOD)
 
 
 class IPAddressSensor(Sensor):
 
     def __init__(self, wifi_manager):
-        self.__wifi_manager = wifi_manager
+        self._wifi_manager = wifi_manager
         super().__init__("ip_address")
 
     def get_measurement(self):
-        if not self.__wifi_manager.is_connected():
+        if not self._wifi_manager.is_connected():
             return Measurement("0.0.0.0", QUALITY_BAD)
 
-        ifconfig = self.__wifi_manager.get_address()
+        ifconfig = self._wifi_manager.get_address()
         return Measurement(ifconfig[0], QUALITY_GOOD)
 
 
 class DS18B20Sensor(Sensor):
 
     def __init__(self, name, pin_number, blocking_first_read=False):
-        self.__prev_measurement = None
-        self.__prev_ticks = 0
-        self.__ds_sensors = []
+        self._prev_measurement = None
+        self._prev_ticks = 0
+        self._ds_sensors = []
 
         try:
-            self.__sensor_reader = ds18x20.DS18X20(
+            self._sensor_reader = ds18x20.DS18X20(
                 onewire.OneWire(machine.Pin(pin_number))
             )
-            self.__ds_sensors = self.__sensor_reader.scan()
+            self._ds_sensors = self._sensor_reader.scan()
 
             if blocking_first_read:
                 self.get_measurement()
@@ -103,28 +103,28 @@ class DS18B20Sensor(Sensor):
         super().__init__(name)
 
     def get_measurement(self):
-        if not len(self.__ds_sensors):
+        if not len(self._ds_sensors):
             return Measurement(0, QUALITY_BAD)
 
         current_ticks = time.ticks_ms()
-        if not self.__prev_measurement:
-            self.__sensor_reader.convert_temp()
-            self.__prev_ticks = current_ticks
-            self.__prev_measurement = Measurement(0, QUALITY_BAD)
+        if not self._prev_measurement:
+            self._sensor_reader.convert_temp()
+            self._prev_ticks = current_ticks
+            self._prev_measurement = Measurement(0, QUALITY_BAD)
 
-        elif time.ticks_diff(current_ticks, self.__prev_ticks) >= 750:
+        elif time.ticks_diff(current_ticks, self._prev_ticks) >= 750:
             accumulator = 0
-            for sensor in self.__ds_sensors:
-                accumulator += self.__sensor_reader.read_temp(sensor)
+            for sensor in self._ds_sensors:
+                accumulator += self._sensor_reader.read_temp(sensor)
 
-            self.__sensor_reader.convert_temp()
-            self.__prev_ticks = current_ticks
+            self._sensor_reader.convert_temp()
+            self._prev_ticks = current_ticks
 
-            self.__prev_measurement = Measurement(
-                accumulator / len(self.__ds_sensors), QUALITY_GOOD
+            self._prev_measurement = Measurement(
+                accumulator / len(self._ds_sensors), QUALITY_GOOD
             )
 
-        return self.__prev_measurement
+        return self._prev_measurement
 
 
 class HX711Sensor(Sensor):
@@ -134,41 +134,51 @@ class HX711Sensor(Sensor):
         name: str,
         dout_pin_number: int,
         sck_pin_number: int,
-        readings_for_averaging=20,
+        readings_for_averaging=100,
     ):
-        self.__readings_for_averaging = readings_for_averaging
-        self.__prev_measurement = None
-        self.__accumulator = 0
-        self.__readings_count = 0
+        self._readings_for_averaging = readings_for_averaging
+        self._prev_measurement = None
+        self._accumulator = 0
+        self._readings_count = 0
 
         try:
-            self.__sensor_reader = hx711.HX711(dout_pin_number, sck_pin_number)
+            self._sensor_reader = hx711.HX711(dout_pin_number, sck_pin_number)
         except hx711.DeviceIsNotReady:
-            self.__sensor_reader = None
+            self._sensor_reader = None
 
         super().__init__(name)
 
     def get_measurement(self):
-        if not self.__sensor_reader:
+        if not self._sensor_reader:
             return Measurement(0, QUALITY_BAD)
 
         try:
-            current_value = self.__sensor_reader.read()
-            self.__accumulator += current_value
-            self.__readings_count += 1
+            current_value = self._sensor_reader.read()
 
-            if self.__prev_measurement is None:
-                self.__prev_measurement = Measurement(current_value, QUALITY_GOOD)
+            # Filter anomaly measurements
+            if self._readings_count > 0:
+                average_value = self._accumulator / self._readings_count
+                if (
+                    average_value > 0
+                    and abs(current_value - average_value) > average_value * 0.1
+                ):
+                    current_value = self._sensor_reader.read()
 
-            if self.__readings_count == self.__readings_for_averaging:
-                self.__prev_measurement = Measurement(
-                    round(self.__accumulator / self.__readings_for_averaging),
+            self._accumulator += current_value
+            self._readings_count += 1
+
+            if self._prev_measurement is None:
+                self._prev_measurement = Measurement(current_value, QUALITY_GOOD)
+
+            if self._readings_count == self._readings_for_averaging:
+                self._prev_measurement = Measurement(
+                    round(self._accumulator / self._readings_for_averaging),
                     QUALITY_GOOD,
                 )
-                self.__readings_count = 0
-                self.__accumulator = 0
+                self._readings_count = 0
+                self._accumulator = 0
 
-            return self.__prev_measurement
+            return self._prev_measurement
 
         except hx711.DeviceIsNotReady:
             return Measurement(0, QUALITY_BAD)
@@ -184,10 +194,10 @@ class WeightSensor(Sensor):
         load_cell_3: HX711Sensor,
         load_cell_4: HX711Sensor,
     ):
-        self.__load_cell_1 = load_cell_1
-        self.__load_cell_2 = load_cell_2
-        self.__load_cell_3 = load_cell_3
-        self.__load_cell_4 = load_cell_4
+        self._load_cell_1 = load_cell_1
+        self._load_cell_2 = load_cell_2
+        self._load_cell_3 = load_cell_3
+        self._load_cell_4 = load_cell_4
 
         super().__init__(name)
 
@@ -196,10 +206,10 @@ class WeightSensor(Sensor):
         accumulator = 0
 
         for cell in [
-            self.__load_cell_1,
-            self.__load_cell_2,
-            self.__load_cell_3,
-            self.__load_cell_4,
+            self._load_cell_1,
+            self._load_cell_2,
+            self._load_cell_3,
+            self._load_cell_4,
         ]:
             m = cell.get_measurement()
 
@@ -213,11 +223,11 @@ class WeightSensor(Sensor):
 class HeaterOutputPowerSensor(Sensor):
 
     def __init__(self, name: str, heater: Heater):
-        self.__heater = heater
+        self._heater = heater
         super().__init__(name)
 
     def get_measurement(self):
-        return Measurement(self.__heater.get_power(), QUALITY_GOOD)
+        return Measurement(self._heater.get_power(), QUALITY_GOOD)
 
 
 class CalibrationPoint:
@@ -243,11 +253,11 @@ class CalibratedSensor(Sensor):
     ):
 
         self.sensor = sensor
-        self.__k = (
+        self._k = (
             calibration_point_2.calibrated_value - calibration_point_1.calibrated_value
         ) / (calibration_point_2.raw_value - calibration_point_1.raw_value)
-        self.__b = (
-            self.__k * calibration_point_1.raw_value
+        self._b = (
+            self._k * calibration_point_1.raw_value
             - calibration_point_1.calibrated_value
         )
         super().__init__(f"{sensor.name}_calibrated")
@@ -256,5 +266,5 @@ class CalibratedSensor(Sensor):
         if not raw_measurement:
             raw_measurement = self.sensor.get_measurement()
 
-        calibrated_value = self.__k * raw_measurement.value - self.__b
+        calibrated_value = self._k * raw_measurement.value - self._b
         return Measurement(calibrated_value, raw_measurement.quality)

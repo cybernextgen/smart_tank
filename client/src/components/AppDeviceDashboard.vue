@@ -1,7 +1,7 @@
 <template>
   <h1>
     {{ appStore.deviceName }}
-    <span class="tag is-small text-success">{{ deviceStateName }}</span>
+    <DeviceConnectionState></DeviceConnectionState>
   </h1>
   <nav class="nav">
     <div class="nav-left">
@@ -58,6 +58,7 @@
   <div v-show="isCalibrationTabActive">
     <AppDeviceCalibration></AppDeviceCalibration>
   </div>
+  <DeviceOfflineWindow></DeviceOfflineWindow>
 </template>
 
 <script setup>
@@ -71,6 +72,8 @@ import HeaterPowerSwitcher from './HeaterPowerSwitcher.vue'
 import MessagesHistory from './MessagesHistory.vue'
 import AppDeviceSetpoints from './AppDeviceSetpoints.vue'
 import AppDeviceCalibration from './AppDeviceCalibration.vue'
+import DeviceConnectionState from './DeviceConnectionState.vue'
+import DeviceOfflineWindow from './DeviceOfflineWindow.vue'
 
 const appStore = useAppStore()
 const confirmDialog = ref()
@@ -102,10 +105,6 @@ function activateSetpointsTab() {
 function activateCalibrationTab() {
   currentTab.value = CALIBRATION_TAB_ID
 }
-
-const deviceStateName = computed(() =>
-  appStore.isDeviceOnline ? 'Online' : 'Offline'
-)
 
 function disconnect() {
   appStore.disconnect()

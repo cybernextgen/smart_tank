@@ -12,7 +12,7 @@
   <div class="row">
     <div class="col">
       <ParameterInput
-        :parameter-name="'Proportional gain'"
+        :parameter-name="'Proportional'"
         :value="appStore.pidP"
         :min-value="0"
         :max-value="10"
@@ -22,12 +22,22 @@
     </div>
     <div class="col">
       <ParameterInput
-        :parameter-name="'Integeral gain'"
+        :parameter-name="'Integeral'"
         :value="appStore.pidI"
         :min-value="0"
         :max-value="10"
         :step-value="0.01"
         @apply-value="appStore.changePidI"
+      ></ParameterInput>
+    </div>
+    <div class="col">
+      <ParameterInput
+        :parameter-name="'Derivative'"
+        :value="appStore.pidD"
+        :min-value="0"
+        :max-value="10"
+        :step-value="0.01"
+        @apply-value="appStore.changePidD"
       ></ParameterInput>
     </div>
   </div>

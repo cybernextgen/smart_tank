@@ -49,6 +49,8 @@ export const useAppStore = defineStore(
     const topTemperatureAH = ref(0)
     const pidP = ref(0)
     const pidI = ref(0)
+    const pidD = ref(0)
+
     const weightCalibrationPoints = ref([
       new CalibrationPoint(0, 0),
       new CalibrationPoint(1, 1)
@@ -150,6 +152,7 @@ export const useAppStore = defineStore(
             topTemperatureAH.value = messageJSON['top_temperature_ah'] || 0
             pidI.value = messageJSON['pid_i'] || 0
             pidP.value = messageJSON['pid_p'] || 0
+            pidD.value = messageJSON['pid_d'] || 0
             setCalibrationPoints(
               messageJSON['weight_calibration_points'],
               weightCalibrationPoints
@@ -265,12 +268,9 @@ export const useAppStore = defineStore(
       try {
         await mqttClient.value.publishAsync(getInputTopic('ping'), '')
 
-        clearPongInterval()
-
-        pongIntervalId.value = setTimeout(
-          () => (isDeviceOnline.value = false),
-          10_000
-        )
+        pongIntervalId.value = setTimeout(() => {
+          isDeviceOnline.value = false
+        }, 10_000)
       } catch {
         resetConnectionFlags()
       }
@@ -300,6 +300,10 @@ export const useAppStore = defineStore(
       return changeParameter('pid_i', newValue)
     }
 
+    async function changePidD(newValue) {
+      return changeParameter('pid_d', newValue)
+    }
+
     async function changeParameter(parameterName, parameterValue) {
       if (!mqttClient.value) return
 
@@ -312,7 +316,8 @@ export const useAppStore = defineStore(
         'output_max_power',
         'output_pwm_interval_ms',
         'pid_p',
-        'pid_i'
+        'pid_i',
+        'pid_d'
       ]
       if (!parameterNames.includes(parameterName)) return
 
@@ -425,6 +430,7 @@ export const useAppStore = defineStore(
       weightSP,
       pidI,
       pidP,
+      pidD,
       weightCalibrationPoints,
       bottomTemperatureCalibrationPoints,
       topTemperatureCalibrationPoints,
@@ -438,6 +444,7 @@ export const useAppStore = defineStore(
       changeWeightSP,
       changePidP,
       changePidI,
+      changePidD,
       changeWeightCalibrationPoints,
       changeBottomTemperatureCalibrationPoints,
       changeTopTemperatureCalibrationPoints

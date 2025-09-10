@@ -13,7 +13,6 @@ from sensors import CalibrationPoint, CalibratedSensor
 
 from umqtt.robust import MQTTClient
 from wifi_manager import WifiManager
-from PID import PID
 
 configuration_mode_signal = Signal(Pin(23, Pin.IN, Pin.PULL_UP), invert=True)
 
@@ -87,25 +86,18 @@ def mqtt_message_handler(btopic, bmsg):
                 device.parameters.pid_i = new_i
                 device.temperature_regulator.Ki = new_i
                 send_status()
+            elif parameter_name == b"pid_d":
+                new_d = float(bmsg)
+                device.parameters.pid_d = new_d
+                device.temperature_regulator.Kd = new_d
+                send_status()
             elif parameter_name == b"output_max_power":
                 new_limit = int(bmsg)
-                if new_limit < 10 or new_limit > 100:
-                    send_status(
-                        400, b"Output max power value should be within 10...100%"
-                    )
-                    return
-
                 device.parameters.output_max_power = new_limit
                 device.heater.power_limit_percent = new_limit
                 send_status()
             elif parameter_name == b"output_pwm_interval_ms":
                 new_interval = int(bmsg)
-                if new_limit < 100 or new_limit > 2000:
-                    send_status(
-                        400, b"Output pwm interval value should be within 100...2000 ms"
-                    )
-                    return
-
                 device.parameters.output_pwm_interval_ms = new_interval
                 device.heater.pwm_interval_ms = new_interval
                 send_status()
@@ -230,18 +222,16 @@ def handle_auto_mode():
         if device.temperature_regulator.auto_mode:
             device.temperature_regulator.auto_mode = False
         return
-    else:
-        if not device.temperature_regulator.auto_mode:
-            current_power = device.heater_output_power_sensor.get_measurement()
-            if current_power.is_bad:
-                disable_device()
-                send_status(
-                    500, "Device disabled! Heater output power sensor malfunction."
-                )
-                return
-            device.temperature_regulator.set_auto_mode(
-                True, last_output=current_power.value
-            )
+
+    if not device.temperature_regulator.auto_mode:
+        current_power = device.heater_output_power_sensor.get_measurement()
+        if current_power.is_bad:
+            disable_device()
+            send_status(500, "Device disabled! Heater output power sensor malfunction.")
+            return
+        device.temperature_regulator.set_auto_mode(
+            True, last_output=current_power.value
+        )
 
     current_temperature = device.sensors_data.get(
         device.bottom_temperature_sensor_calibrated.name
@@ -343,7 +333,7 @@ def main():
 
         except Exception as e:
             if __debug__:
-                print(f"Error during MQTT operation: {e}")
+                print(f"Error during main loop operations: {e}")
             time.sleep(2)
             try:
                 mqtt_client.reconnect()
