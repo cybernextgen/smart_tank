@@ -23,6 +23,21 @@ Upgrade for boiling device. Adds "smart" functions to device, such as:
 
 ## Software
 
+### MQTT brocker
+
+Brocker must support persisted sessions. For `mosquitto` add to `mosquitto.conf` next line:
+
+```text
+persistence: true
+```
+
+Smart tank client app use `ws` protocol. For `mosquitto` it's enabled with next config lines:
+
+```text
+listener 1884
+protocol websockets
+```
+
 ### Firmware
 
 1. Install `micropython==1.25.0` release into the ESP32 devboard (https://micropython.org/download/ESP32_GENERIC/);
@@ -90,6 +105,7 @@ Device publish (after power on or after changes occurred) parameters, which are 
   "output_pwm_interval_ms": 1000, // heater PWM pulses interval in milliseconds
   "pid_p": 1.5, // PI regulator proportional value
   "pid_i": 10, // PI regulator integral value
+  "pid_d": 0, // PI regulator derevative value
   "weight_calibration_points": [
     { "calibrated_value": 0, "raw_value": -224980 },
     { "calibrated_value": 10000, "raw_value": 1705616 }
@@ -157,7 +173,7 @@ Client publish message with new device working mode value:
 - 1 - auto mode;
 - 2 - remote mode.
 
-##### **{{device_name}}/to_device/parameters/(top_temperature_ah|bottom_temperature_ah|bottom_temperatrue_sp|weight_sp|pid_p|pid_i)**
+##### **{{device_name}}/to_device/parameters/(top_temperature_ah|bottom_temperature_ah|bottom_temperatrue_sp|weight_sp|pid_p|pid_i|pid_d)**
 
 Client publish new parameter value as float pointing number.
 
