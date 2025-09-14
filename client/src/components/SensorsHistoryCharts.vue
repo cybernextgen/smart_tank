@@ -54,49 +54,72 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useAppStore } from '../store/AppStore'
+import dayjs from 'dayjs'
 
 const appStore = useAppStore()
 
 const currentTab = ref(0)
 
-const optionsTemperature = ref({
-  xaxis: {
-    type: 'datetime',
-    labels: {
-      datetimeUTC: false
+const minDatetime = computed(() =>
+  dayjs(new Date()).add(-30, 'm').toDate().getTime()
+)
+
+const xLabels = {
+  formatter: function (val) {
+    return dayjs(new Date(val)).format('HH:mm')
+  }
+}
+
+const optionsTemperature = computed(() => {
+  return {
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        datetimeUTC: false
+      },
+      tickAmount: 10,
+      min: minDatetime.value,
+      labels: xLabels
     },
-    tickAmount: 50
-  },
-  yaxis: {
-    min: 0,
-    max: 100
+    yaxis: {
+      min: 0,
+      max: 100
+    }
   }
 })
 
-const optionsWeight = ref({
-  xaxis: {
-    type: 'datetime',
-    labels: {
-      datetimeUTC: false
+const optionsWeight = computed(() => {
+  return {
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        datetimeUTC: false
+      },
+      tickAmount: 10,
+      min: minDatetime.value,
+      labels: xLabels
     },
-    tickAmount: 50
-  },
-  yaxis: {
-    min: 0,
-    max: 20
+    yaxis: {
+      min: 0,
+      max: 20
+    }
   }
 })
-const optionsHeater = ref({
-  xaxis: {
-    type: 'datetime',
-    labels: {
-      datetimeUTC: false
+const optionsHeater = computed(() => {
+  return {
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        datetimeUTC: false
+      },
+      tickAmount: 10,
+      min: minDatetime.value,
+      labels: xLabels
     },
-    tickAmount: 50
-  },
-  yaxis: {
-    min: 0,
-    max: 100
+    yaxis: {
+      min: 0,
+      max: 100
+    }
   }
 })
 
