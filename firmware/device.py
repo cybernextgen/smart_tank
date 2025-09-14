@@ -16,28 +16,6 @@ from PID import PID
 
 class Device:
 
-    free_memory_sensor: FreeMemorySensor
-    uptime_sensor: UptimeSensor
-    ip_address_sensor: IPAddressSensor
-
-    bottom_temperature_sensor: DS18B20Sensor
-    bottom_temperature_sensor_calibrated: CalibratedSensor
-
-    top_temperature_sensor: DS18B20Sensor
-    top_temperature_sensor_calibrated: CalibratedSensor
-
-    weight_sensor: WeightSensor
-    wight_sensor_calibrated: CalibratedSensor
-
-    heater: Heater
-    heater_output_power_sensor: HeaterOutputPowerSensor
-
-    parameters: ParameterManager
-
-    temperature_regulator: PID
-
-    sensors_data = {}
-
     def __init__(self, parameters: ParameterManager, wifi_manager: WifiManager):
         self.parameters = parameters
 
@@ -98,8 +76,9 @@ class Device:
             scale="s",
             sample_time=5,
             output_limits=[0, 100],
+            auto_mode=False,
         )
-        self.temperature_regulator.auto_mode = False
+        self.sensors_data = {}
 
     def read_sensors_data(self):
         self.sensors_data = {}
@@ -122,6 +101,3 @@ class Device:
             self.sensors_data[calibrated_sensor.name] = (
                 calibrated_sensor.get_measurement(m)
             )
-
-    def handle_output(self):
-        self.heater.handle_output()

@@ -258,7 +258,7 @@ def handle_remote_mode():
 
 
 def handle_output():
-    device.handle_output()
+    device.heater.handle_output()
 
 
 def disable_device():
@@ -286,7 +286,7 @@ def main():
     mqtt_client = MQTTClient(
         mqtt_client_id,
         mqtt_host,
-        settings["mqtt_port"],
+        int(settings["mqtt_port"]),
         settings["mqtt_user"],
         settings["mqtt_password"],
     )
