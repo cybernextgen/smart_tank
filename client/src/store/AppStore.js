@@ -101,7 +101,7 @@ export const useAppStore = defineStore(
       if (measurement.isBad()) return
 
       variable.value.push({ x: datetime.getTime(), y: measurement.value })
-      if (variable.value.length > 50) {
+      if (variable.value.length > 720) {
         variable.value.shift()
       }
     }

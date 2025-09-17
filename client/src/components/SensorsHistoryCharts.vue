@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '../store/AppStore'
 import dayjs from 'dayjs'
 
@@ -60,25 +60,41 @@ const appStore = useAppStore()
 
 const currentTab = ref(0)
 
-const minDatetime = computed(() =>
-  dayjs(new Date()).add(-30, 'm').toDate().getTime()
-)
-
 const xLabels = {
   formatter: function (val) {
     return dayjs(new Date(val)).format('HH:mm')
   }
 }
 
-const optionsTemperature = computed(() => {
-  return {
+const optionsTemperature = ref({})
+const optionsWeight = ref({})
+const optionsHeater = ref({})
+
+function getMinDateTime() {
+  return dayjs(new Date()).add(-60, 'm').toDate().getTime()
+}
+
+watch(
+  () => appStore.topTemperatureCalibratedHistory,
+  () => {
+    updateOptions()
+  },
+  { deep: true }
+)
+
+onMounted(() => {
+  updateOptions()
+})
+
+function updateOptions() {
+  optionsTemperature.value = {
     xaxis: {
       type: 'datetime',
       labels: {
         datetimeUTC: false
       },
       tickAmount: 10,
-      min: minDatetime.value,
+      min: getMinDateTime(),
       labels: xLabels
     },
     yaxis: {
@@ -86,17 +102,15 @@ const optionsTemperature = computed(() => {
       max: 100
     }
   }
-})
 
-const optionsWeight = computed(() => {
-  return {
+  optionsWeight.value = {
     xaxis: {
       type: 'datetime',
       labels: {
         datetimeUTC: false
       },
       tickAmount: 10,
-      min: minDatetime.value,
+      min: getMinDateTime(),
       labels: xLabels
     },
     yaxis: {
@@ -104,16 +118,15 @@ const optionsWeight = computed(() => {
       max: 20
     }
   }
-})
-const optionsHeater = computed(() => {
-  return {
+
+  optionsHeater.value = {
     xaxis: {
       type: 'datetime',
       labels: {
         datetimeUTC: false
       },
       tickAmount: 10,
-      min: minDatetime.value,
+      min: getMinDateTime(),
       labels: xLabels
     },
     yaxis: {
@@ -121,7 +134,7 @@ const optionsHeater = computed(() => {
       max: 100
     }
   }
-})
+}
 
 const seriesTemperature = computed(() => [
   {
