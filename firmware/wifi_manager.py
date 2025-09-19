@@ -3,9 +3,50 @@ import network
 import socket
 import re
 import time
+import ujson
 
 ENCODING = "utf-8"
-SETTINGS_FILE_NAME = "settings.dat"
+SETTINGS_FILE_NAME = "wifi_settings.json"
+
+
+class WiFiSettings:
+
+    def __init__(
+        self,
+        ssid: str = "",
+        password: str = "",
+        device_name: str = "smart_tank",
+        mqtt_host: str = "",
+        mqtt_port: int = 0,
+        mqtt_user: str = "",
+        mqtt_password: str = "",
+    ):
+        self.ssid = ssid
+        self.password = password
+        self.device_name = device_name
+        self.mqtt_host = mqtt_host
+        self.mqtt_port = mqtt_port
+        self.mqtt_user = mqtt_user
+        self.mqtt_password = mqtt_password
+
+    def _to_dict(self):
+        return {
+            "ssid": self.ssid,
+            "password": self.password,
+            "device_name": self.device_name,
+            "mqtt_host": self.mqtt_host,
+            "mqtt_port": self.mqtt_port,
+            "mqtt_user": self.mqtt_user,
+            "mqtt_password": self.mqtt_password,
+        }
+
+    def to_json(self):
+        return ujson.dumps(self._to_dict())
+
+    @staticmethod
+    def from_json(json_string):
+        json_dict = ujson.loads(json_string)
+        return WiFiSettings(**json_dict)
 
 
 class WifiManager:
@@ -15,7 +56,6 @@ class WifiManager:
         ssid="WifiManager",
         password="wifimanager",
         reboot=True,
-        debug=False,
         configuration_mode=False,
     ):
         self.wlan_sta = network.WLAN(network.STA_IF)
@@ -35,7 +75,6 @@ class WifiManager:
         self.wlan_sta.disconnect()
 
         self.reboot = reboot
-        self.debug = debug
         self.configuration_mode = configuration_mode
 
     def connect(self):
@@ -45,13 +84,14 @@ class WifiManager:
             settings = self.read_settings()
             for ssid, *_ in self.wlan_sta.scan():
                 ssid = ssid.decode(ENCODING)
-                if ssid == settings.get("ssid"):
-                    password = settings["password"]
+                if ssid == settings.ssid:
+                    password = settings.password
                     if self.wifi_connect(ssid, password):
                         return
-            print(
-                "Could not connect to any WiFi network. Starting the configuration portal..."
-            )
+            if __debug__:
+                print(
+                    "Could not connect to any WiFi network. Starting the configuration portal..."
+                )
         self.web_server()
 
     def disconnect(self):
@@ -64,54 +104,34 @@ class WifiManager:
     def get_address(self):
         return self.wlan_sta.ifconfig()
 
-    def write_settings(self, settings):
-        lines = []
-        lines.append(
-            "{};{};{};{};{};{};{}\n".format(
-                settings["ssid"],
-                settings["password"],
-                settings["device_name"],
-                settings["mqtt_host"],
-                settings["mqtt_port"],
-                settings["mqtt_user"],
-                settings["mqtt_password"],
-            )
-        )
+    def write_settings(self, settings: WiFiSettings):
         with open(SETTINGS_FILE_NAME, "w") as file:
-            file.write("".join(lines))
+            file.write(settings.to_json())
 
-    def read_settings(self):
-        lines = []
+    def read_settings(self) -> WiFiSettings:
         try:
             with open(SETTINGS_FILE_NAME) as file:
-                lines = file.readlines()
-        except Exception as error:
-            if self.debug:
-                print(error)
-            pass
-        settings = {}
-        for line in lines:
-            raw_settings = line.strip().split(";")
-            settings["ssid"] = raw_settings[0]
-            settings["password"] = raw_settings[1]
-            settings["device_name"] = raw_settings[2]
-            settings["mqtt_host"] = raw_settings[3]
-            settings["mqtt_port"] = raw_settings[4]
-            settings["mqtt_user"] = raw_settings[5]
-            settings["mqtt_password"] = raw_settings[6]
-        return settings
+                return WiFiSettings.from_json(file.read())
+        except OSError:
+            return WiFiSettings()
 
     def wifi_connect(self, ssid, password):
-        print("Trying to connect to:", ssid)
+        if __debug__:
+            print("Trying to connect to:", ssid)
+
         self.wlan_sta.connect(ssid, password)
         for _ in range(100):
             if self.wlan_sta.isconnected():
-                print("\nConnected! Network information:", self.wlan_sta.ifconfig())
+                if __debug__:
+                    print("\nConnected! Network information:", self.wlan_sta.ifconfig())
                 return True
             else:
-                print(".", end="")
+                if __debug__:
+                    print(".", end="")
                 time.sleep_ms(100)
-        print("\nConnection failed!")
+        if __debug__:
+            print("\nConnection failed!")
+
         self.wlan_sta.disconnect()
         return False
 
@@ -126,19 +146,22 @@ class WifiManager:
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind(("", 80))
         server_socket.listen(1)
-        print(
-            "Connect to",
-            self.ap_ssid,
-            "with the password",
-            self.ap_password,
-            "and access the captive portal at",
-            self.wlan_ap.ifconfig()[0],
-        )
+        if __debug__:
+            print(
+                "Connect to",
+                self.ap_ssid,
+                "with the password",
+                self.ap_password,
+                "and access the captive portal at",
+                self.wlan_ap.ifconfig()[0],
+            )
         while True:
             if self.wlan_sta.isconnected():
                 self.wlan_ap.active(False)
                 if self.reboot:
-                    print("The device will reboot in 5 seconds.")
+                    if __debug__:
+                        print("The device will reboot in 5 seconds.")
+
                     time.sleep(5)
                     machine.reset()
             self.client, addr = server_socket.accept()
@@ -147,23 +170,21 @@ class WifiManager:
                 self.request = b""
                 try:
                     while True:
-                        if "\r\n\r\n" in self.request:
-                            # Fix for Safari browser
+                        if b"\r\n\r\n" in self.request:
                             self.request += self.client.recv(512)
                             break
                         self.request += self.client.recv(128)
                 except Exception as error:
-                    # It's normal to receive timeout errors in this stage, we can safely ignore them.
-                    if self.debug:
+                    if __debug__:
                         print(error)
                     pass
                 if self.request:
-                    if self.debug:
-                        print(self.url_decode(self.request))
+                    req = self.request.decode(ENCODING, "ignore")
+                    if __debug__:
+                        print(req)
                     url = (
-                        re.search("(?:GET|POST) /(.*?)(?:\\?.*?)? HTTP", self.request)
+                        re.search(r"(?:GET|POST) /(.*?)(?:\?.*?)? HTTP", req)
                         .group(1)
-                        .decode("utf-8")
                         .rstrip("/")
                     )
                     if url == "":
@@ -173,7 +194,7 @@ class WifiManager:
                     else:
                         self.handle_not_found()
             except Exception as error:
-                if self.debug:
+                if __debug__:
                     print(error)
                 return
             finally:
@@ -187,7 +208,7 @@ class WifiManager:
     def send_response(self, payload, status_code=200):
         self.send_header(status_code)
         self.client.sendall(
-            """
+            f"""
             <!DOCTYPE html>
             <html lang="en">
                 <head>
@@ -197,19 +218,19 @@ class WifiManager:
                     <link rel="icon" href="data:,">
                 </head>
                 <body>
-                    {0}
+                    {payload}
                 </body>
             </html>
-        """.format(
-                payload
-            )
+        """
         )
         self.client.close()
 
     def handle_root(self):
+        settings = self.read_settings()
+
         self.send_header()
         self.client.sendall(
-            """
+            f"""
             <!DOCTYPE html>
             <html lang="en">
                 <head>
@@ -227,10 +248,8 @@ class WifiManager:
                     <form action="/configure" method="post" accept-charset="utf-8">
                         <fieldset>
                         <legend>WiFi settings</legend>
-                        <p><label for="ssid">SSID</label><select id="ssid" name="ssid" class="i">
-        """.format(
-                self.ap_ssid
-            )
+                        <p><label for="ssid">SSID</label><select id="ssid" name="ssid" class="i" value="{settings.ssid}">
+        """
         )
 
         for ssid, *_ in self.wlan_sta.scan():
@@ -247,17 +266,17 @@ class WifiManager:
                 )
             )
         self.client.sendall(
-            """
+            f"""
                         </select></p>
-                        <p><label for="password">Password</label><input type="password" id="password" name="password" class="i"></p>
+                        <p><label for="password">Password</label><input type="password" id="password" name="password" class="i" value="{settings.password}"></p>
                         </fieldset>
                         <fieldset>
                         <legend>MQTT settings</legend>
-                        <p><label for="d_n">Device name</label><input type="text" id="d_n" name="d_n" class="i" required=""></p>
-                        <p><label for="b_h">Broker host</label><input type="text" id="b_h" name="b_h" class="i" required=""></p>
-                        <p><label for="b_prt">Broker port</label><input type="text" id="b_prt" name="b_prt" class="i" required="" value="1883"></p>
-                        <p><label for="b_l">Login</label><input type="text" id="b_l" name="b_l" class="i"></p>
-                        <p><label for="b_pwd">Password</label><input type="password" id="b_pwd" name="b_pwd" class="i"></p>
+                        <p><label for="d_n">Device name</label><input type="text" id="d_n" name="d_n" class="i" required="" value="{settings.device_name}"></p>
+                        <p><label for="b_h">Broker host</label><input type="text" id="b_h" name="b_h" class="i" required="" value="{settings.mqtt_host}"></p>
+                        <p><label for="b_prt">Broker port</label><input type="text" id="b_prt" name="b_prt" class="i" required="" value="{settings.mqtt_port}"></p>
+                        <p><label for="b_l">Login</label><input type="text" id="b_l" name="b_l" class="i" value="{settings.mqtt_user}"></p>
+                        <p><label for="b_pwd">Password</label><input type="password" id="b_pwd" name="b_pwd" class="i" value="{settings.mqtt_password}"></p>
                         </fieldset>
                         <p><input type="submit" value="Save" class="i"></p>
                     </form>
@@ -268,44 +287,30 @@ class WifiManager:
         self.client.close()
 
     def handle_configure(self):
-        decoded = self.url_decode(self.request)
-        regex = "ssid=([^&]*)&password=(.*)&d_n=(.*)&b_h=(.*)&b_prt=(.*)&b_l=(.*)&b_pwd=(.*)"
+        decoded = self.url_decode(self.request).decode(ENCODING, "ignore")
+        regex = r"ssid=([^&]*)&password=(.*)&d_n=(.*)&b_h=(.*)&b_prt=(.*)&b_l=(.*)&b_pwd=(.*)"
         match = re.search(regex, decoded)
         if match:
-            ssid = match.group(1).decode(ENCODING)
-            password = match.group(2).decode(ENCODING)
-            device_name = match.group(3).decode(ENCODING)
-            mqtt_host = match.group(4).decode(ENCODING)
-            mqtt_port = match.group(5).decode(ENCODING)
-            mqtt_user = match.group(6).decode(ENCODING)
-            mqtt_password = match.group(7).decode(ENCODING)
+            settings = WiFiSettings(*[match.group(index) for index in range(1, 8)])
 
-            if len(ssid) == 0:
+            if len(settings.ssid) == 0:
                 self.send_response(
                     """
-                    <p>SSID must be providaded!</p>
+                    <p>SSID must be provided!</p>
                     <p>Go back and try again!</p>
                 """,
                     400,
                 )
-            elif self.wifi_connect(ssid, password):
+            elif self.wifi_connect(settings.ssid, settings.password):
                 self.send_response(
                     """
                     <p>Successfully connected to</p>
                     <h1>{0}</h1>
                     <p>IP address: {1}</p>
                 """.format(
-                        ssid, self.wlan_sta.ifconfig()[0]
+                        settings.ssid, self.wlan_sta.ifconfig()[0]
                     )
                 )
-                settings = self.read_settings()
-                settings["ssid"] = ssid
-                settings["password"] = password
-                settings["device_name"] = device_name
-                settings["mqtt_host"] = mqtt_host
-                settings["mqtt_port"] = mqtt_port
-                settings["mqtt_user"] = mqtt_user
-                settings["mqtt_password"] = mqtt_password
                 self.write_settings(settings)
                 time.sleep(5)
             else:
@@ -315,7 +320,7 @@ class WifiManager:
                     <h1>{0}</h1>
                     <p>Go back and try again!</p>
                 """.format(
-                        ssid
+                        settings.ssid
                     )
                 )
                 time.sleep(5)
@@ -361,7 +366,7 @@ class WifiManager:
                 appnd(char)
                 appnd(item[2:])
             except Exception as error:
-                if self.debug:
+                if __debug__:
                     print(error)
                 appnd(b"%")
                 appnd(item)

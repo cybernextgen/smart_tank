@@ -23,7 +23,6 @@ mqtt_client = None
 wifi_manager = WifiManager(
     ssid="smart_tank",
     password="smart_tank",
-    debug=True,
     configuration_mode=configuration_mode_signal.value(),
 )
 
@@ -280,15 +279,15 @@ def main():
     wifi_manager.connect()
     settings = wifi_manager.read_settings()
 
-    mqtt_client_id = settings["device_name"].encode() or mqtt_client_id
-    mqtt_host = settings["mqtt_host"]
+    mqtt_client_id = settings.device_name.encode() or mqtt_client_id
+    mqtt_host = settings.mqtt_host
 
     mqtt_client = MQTTClient(
         mqtt_client_id,
         mqtt_host,
-        int(settings["mqtt_port"]),
-        settings["mqtt_user"],
-        settings["mqtt_password"],
+        settings.mqtt_port,
+        settings.mqtt_user,
+        settings.mqtt_password,
     )
     mqtt_client.set_callback(mqtt_message_handler)
 
