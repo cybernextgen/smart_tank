@@ -28,7 +28,7 @@ class Measurement:
         return {"value": self.value, "quality": self.quality}
 
     def to_json(self):
-        return ujson.dumps(self.to_dict)
+        return ujson.dumps(self.to_dict())
 
 
 class Sensor:
