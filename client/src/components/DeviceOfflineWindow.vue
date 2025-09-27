@@ -3,11 +3,9 @@
     <div class="row">
       <div class="col">
         <h4>Device is offline</h4>
-        <p>
-          Client connected to MQTT-brocker, but the device not responded on ping
-          requests.
-        </p>
+        <p>The device not responded on ping requests.</p>
         <ul>
+          <li>Check application connection settings;</li>
           <li>Check device name;</li>
           <li>Check device connection settings;</li>
           <li>Check device power supply.</li>

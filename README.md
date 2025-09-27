@@ -23,9 +23,9 @@ Upgrade for boiling device. Adds "smart" functions to device, such as:
 
 ## Software
 
-### MQTT brocker
+### MQTT broker
 
-Brocker must support persisted sessions. For `mosquitto` add to `mosquitto.conf` next line:
+Broker must support persisted sessions. For `mosquitto` add to `mosquitto.conf` next line:
 
 ```text
 persistence: true

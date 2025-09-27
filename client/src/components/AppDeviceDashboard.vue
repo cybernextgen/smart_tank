@@ -29,7 +29,7 @@
     <div class="nav-right">
       <AppButtonWithConfirmation
         :child-class="'button error'"
-        :confirmation-dialog-text="'Disconnect from brocker?'"
+        :confirmation-dialog-text="'Disconnect from broker?'"
         @confirmed="disconnect()"
         >Disconnect</AppButtonWithConfirmation
       >
